@@ -1,13 +1,14 @@
 # Satiscraft
 
-A factory-building mod for NeoForge multiplayer servers: extract resources, generate power,
-process, transport on animated conveyors, and progress as a team through a HUB.
+A progression-driven factory mod for NeoForge multiplayer servers: start with flint tools in
+the Stone Age, master heat and metals, then build powered, automated factories as a team
+around a HUB.
 
 The whole simulation runs in a Rust core (`factory-core`) that knows nothing about Minecraft.
 The NeoForge mod, written in Kotlin, only translates game events into commands and displays
 the effects the core sends back.
 
-> Status: early development (0.0.x). V1 = 0.1.0.
+> Status: early development (0.0.x). 0.1.0 = the Stone Age, from bare hands to the first iron bloom.
 
 ## Requirements
 
