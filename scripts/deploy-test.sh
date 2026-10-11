@@ -130,7 +130,7 @@ server_state() {
 # Sends a power signal and waits until the server reaches the state it leads to.
 # Pterodactyl reports "running" once the server has finished starting.
 power() {
-  local signal="$1" target="running" state="" last="" left=true waited=0
+  local signal="$1" target="running" state="" last="" left=true started=$SECONDS offline_since=""
   case "$signal" in
     start | restart) ;;
     stop | kill) target="offline" ;;
@@ -139,7 +139,7 @@ power() {
   # A restart first leaves "running"; anything else may already be in its target state.
   if [[ "$signal" == "restart" ]]; then left=false; fi
   server_api POST power -d "{\"signal\":\"$signal\"}" >/dev/null
-  while ((waited < 300)); do
+  while ((SECONDS - started < 300)); do
     state="$(server_state)"
     if [[ "$state" != "$last" ]]; then
       echo "    $state"
@@ -147,10 +147,18 @@ power() {
     fi
     if [[ "$state" != "running" ]]; then left=true; fi
     if $left && [[ "$state" == "$target" ]]; then return 0; fi
+    # A server that should start but stays offline has crashed while starting.
+    if [[ "$target" == "running" && "$state" == "offline" ]]; then
+      if [[ -z "$offline_since" ]]; then offline_since=$SECONDS; fi
+      if ((SECONDS - offline_since >= 45)); then
+        fail "the server stays offline instead of starting; see scripts/deploy-test.sh --log"
+      fi
+    else
+      offline_since=""
+    fi
     sleep 2
-    waited=$((waited + 2))
   done
-  fail "the server is still $state after ${waited}s"
+  fail "the server is still $state after $((SECONDS - started))s"
 }
 
 case "${1:-}" in
@@ -286,9 +294,13 @@ fi
 
 echo "==> Restarting the test server"
 power restart
-if print_log 2000 | grep -E "factory-core .* loaded"; then
-  echo "Deployed $version to the test server."
-else
-  echo "error: the server started without loading factory-core; see scripts/deploy-test.sh --log" >&2
-  exit 1
-fi
+# The core logs its version a few seconds after the server reports it is running.
+waited_since=$SECONDS
+until print_log 3000 | grep -E "factory-core .* loaded"; do
+  if ((SECONDS - waited_since >= 60)); then
+    echo "error: factory-core did not load within 60s; see scripts/deploy-test.sh --log" >&2
+    exit 1
+  fi
+  sleep 5
+done
+echo "Deployed $version to the test server."

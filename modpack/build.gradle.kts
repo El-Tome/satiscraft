@@ -9,9 +9,7 @@ plugins {
 java.toolchain.languageVersion = JavaLanguageVersion.of(providers.gradleProperty("java_version").get().toInt())
 
 // Dependency mods a server needs next to the three jars, staged for scripts/deploy-test.sh.
-val serverMods = configurations.create("serverMods") {
-    isTransitive = false
-}
+val serverMods = configurations.create("serverMods")
 
 repositories {
     maven("https://thedarkcolour.github.io/KotlinForForge/") {
@@ -53,7 +51,11 @@ tasks.jar {
 
 val stageServerMods = tasks.register<Sync>("serverMods") {
     description = "Stages the dependency mods of the server in build/serverMods."
-    from(serverMods)
+    // Kotlin for Forge spreads over several jars (kffmod, kfflang, kfflib, and the Kotlin
+    // libraries nested in kotlinforforge-neoforge): keep its jars, not their own dependencies.
+    from(serverMods.incoming.artifactView {
+        componentFilter { id -> id is ModuleComponentIdentifier && id.group == "thedarkcolour" }
+    }.files)
     into(layout.buildDirectory.dir("serverMods"))
 }
 
