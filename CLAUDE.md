@@ -1,6 +1,6 @@
 # Satiscraft: rules for the agent
 
-Factory-building mod for NeoForge (Minecraft 26.2, dedicated Linux servers) whose whole
+Factory-building mod for NeoForge (Minecraft 26.3, dedicated Linux servers) whose whole
 simulation lives in a Rust core, so that it can later be plugged into Pumpkin.
 Design references (French), to read before any non-trivial change:
 

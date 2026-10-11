@@ -17,7 +17,7 @@ It ships as three NeoForge mods written in Kotlin, at one common version:
 ## Requirements
 
 - [rustup](https://rustup.rs): the pinned toolchain and targets install automatically.
-- A JDK 17+ to launch Gradle. Gradle then provisions the JDK 25 that Minecraft 26.2 needs.
+- A JDK 17+ to launch Gradle. Gradle then provisions the JDK 25 that Minecraft 26.3 needs.
 
 ## Getting started
 
