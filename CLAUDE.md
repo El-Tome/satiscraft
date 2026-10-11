@@ -8,42 +8,56 @@ Design references (French), to read before any non-trivial change:
 - `docs/cadrage-gameplay-age-de-pierre.md`: gameplay of 0.1.0, the Stone Age.
 
 Roadmap: 0.1 Stone Age, 0.2 Iron Age and kinetics, 0.3 electricity and conveyors,
-0.4 electronics. The technical framing predates this split: for version scope, the
-gameplay doc wins. If code and docs disagree on anything else, ask.
+0.4 electronics. The gameplay doc says what 0.1 contains, the technical doc how to build it.
+The docs call the project "factory": its name is Satiscraft. If code and docs disagree, ask.
 
 ## Layout
 
 ```
-Cargo.toml                 Rust workspace; [workspace.package] version = THE mod version
+Cargo.toml                 Rust workspace; [workspace.package] version = THE version of all mods
 rust-toolchain.toml        pinned Rust toolchain and targets
-crates/factory-core/       pure game logic + content/ (TOML); no MC, JNI or network
+crates/factory-core/       pure game logic + default content/ (TOML); no MC, JNI or network
 crates/factory-jni/        JNI bridge: translation, panic handling, threading only
-neoforge/                  Kotlin mod (ModDevGradle + Kotlin for Forge)
+mods/satiscraft/           the engine (Kotlin): embeds the native lib, declares all blocks and items
+mods/satiscraft-world/     world generation: places the engine's ores and surface pieces, loot
+mods/satiscraft-primitive/ Stone Age rules: neutralized vanilla, bare-hand limits, animals strike back
+modpack/                   config and content overrides; dev runs of the three mods together
+build-logic/               Gradle convention plugin `satiscraft.mod`, shared by the mods
 fixtures/                  reference saves, one per released version
 docs/                      design documents (French)
 scripts/deploy-test.sh     deploys to the TEST server only
-gradle.properties          pinned MC / NeoForge / Kotlin / KFF versions, mod metadata
+gradle.properties          pinned MC / NeoForge / Kotlin / KFF versions, shared metadata
 ```
 
 ## Commands
 
 ```sh
-./gradlew build                      # everything: cargo build, Rust tests, Kotlin + JNI tests, jar
+./gradlew build                      # everything: cargo build, Rust + Kotlin + JNI tests, 3 jars
 cargo test --workspace               # Rust tests only
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo build -p factory-core --target wasm32-unknown-unknown   # portability guard
-./gradlew :neoforge:runServer        # dev server (also runClient, runGameTestServer)
-scripts/deploy-test.sh               # jar -> test server, then restart
+./gradlew :modpack:runServer         # dev server with the three mods (also runClient)
+./gradlew :mods:satiscraft:runServer # the engine alone (also runClient, runGameTestServer, runData)
+scripts/deploy-test.sh [jar...]      # the jars (from CI) -> test server, restart, check the core loaded
+scripts/deploy-test.sh --check       # read-only: mods folder, server state, API key scope
+scripts/deploy-test.sh --power stop  # or start, restart, kill; waits for the resulting state
+scripts/deploy-test.sh --log 100     # end of the test server console
 ```
 
 The Gradle build compiles `factory-jni` for the host and embeds it under
-`natives/<platform>/` in the jar. Only a jar built on Linux x86_64 (CI) runs on the server;
-`-Prust_target=<triple>` overrides the target.
+`natives/<platform>/` in the engine jar. Only a jar built on Linux x86_64 (CI) runs on the
+server; `-Prust_target=<triple>` overrides the target.
 
 ## Architecture rules
 
-- Dependencies only point down: Kotlin mod → `factory-jni` → `factory-core`.
+- Dependencies only point down: `satiscraft-world` / `satiscraft-primitive` → engine mod
+  `satiscraft` → `factory-jni` → `factory-core`.
+- Three mods, one version, one release: the engine (`satiscraft`), `satiscraft_world` and
+  `satiscraft_primitive`. Only the engine declares blocks and items, from its TOML.
+  `satiscraft_world` only places the engine's ores, `satiscraft_primitive` only restricts.
+  Neither depends on the other, and the engine runs alone in a vanilla world. They query the
+  engine through its small Kotlin API (age reached by a team, whether something is unlocked).
 - `factory-core`: `#![forbid(unsafe_code)]`, no JNI/Minecraft/network crate, must keep
   building for `wasm32-unknown-unknown`. Rust owns all simulated state.
 - `factory-jni`: no game rule. `#![deny(unsafe_code)]`; the only exemption is
@@ -53,10 +67,11 @@ The Gradle build compiles `factory-jni` for the host and embeds it under
 - Core vs platform (decided 2026-10-11): the core owns everything that progresses or is
   simulated: teams, camp levels, quests, blueprints, machines and heat, station recipes,
   mini-game validation and luck draws. Rules native to the Minecraft world (mob AI, harvest
-  rules, loot, worldgen, removal of vanilla recipes) are enforced by Kotlin and datapacks,
-  but their values come from the core's TOML content and unlocks are asked to the core.
-- Kotlin registers blocks/items/menus and displays what the core returns. It never stores
-  simulated state nor validates core gameplay: doing so is an architecture bug.
+  rules, loot, worldgen, removal of vanilla recipes) are enforced by Kotlin and datapacks in
+  `satiscraft-world` and `satiscraft-primitive`, with values from their TOML, and unlocks
+  are asked to the engine.
+- The engine's Kotlin registers blocks/items/menus and displays what the core returns. No
+  Kotlin code stores simulated state or validates core gameplay: doing so is an architecture bug.
 - Contract: commands in, effects out (`submit`, `step`/`tick`, `query`, `save`, `load`).
   Positions are `(dimension, x, y, z)` integers, items string ids (`satiscraft:bauxite`),
   players UUIDs. No Minecraft type crosses. Adding a field is fine; removing or changing one
@@ -67,7 +82,9 @@ The Gradle build compiles `factory-jni` for the host and embeds it under
   `FactoryCoreException`; a panicking island goes `Faulted`, the rest keeps running.
 - Simulation: exact integer fractions, no floats. Parallel and sequential runs must produce
   the same state. Durations in ticks, energy in milli-units.
-- Every balancing value lives in `crates/factory-core/content/*.toml`, never in code.
+- Every balancing value lives in TOML, never in code: `crates/factory-core/content/` for the
+  engine, `worldgen.toml` for `satiscraft-world`, `vanilla.toml` for `satiscraft-primitive`.
+  The modpack and servers override them from `config/satiscraft/`.
 - Identifiers are frozen once released: deprecate, never rename or delete.
 - Save format: versioned binary blob (`FCTR` header); every structure change bumps the format
   version and adds `migrate_vN_to_vN+1` plus a fixture.
@@ -88,8 +105,11 @@ The Gradle build compiles `factory-jni` for the host and embeds it under
 
 ## Deployment
 
-Only `scripts/deploy-test.sh`, which targets the test server through a Pterodactyl key
-restricted to it. Never touch production: it is updated by hand.
+Only `scripts/deploy-test.sh`: it uploads the jars with the test server's SFTP account (which
+Pterodactyl scopes to that server), along with the dependency mods staged by
+`./gradlew :modpack:serverMods`, then restarts the server through the client API. Its account
+is non-admin and reaches only the test server. Never touch production: it is updated by hand.
+Never open `.env.deploy`: only the script reads it.
 
 ## Not wired yet
 

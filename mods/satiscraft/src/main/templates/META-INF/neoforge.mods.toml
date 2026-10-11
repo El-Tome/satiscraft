@@ -1,0 +1,37 @@
+# Generated from src/main/templates by the generateModMetadata task.
+modLoader = "kotlinforforge"
+loaderVersion = "[6,)"
+license = "${mod_license}"
+issueTrackerURL = "https://github.com/El-Tome/satiscraft/issues"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "Satiscraft"
+authors = "${mod_authors}"
+displayURL = "https://github.com/El-Tome/satiscraft"
+description = '''
+Engine of Satiscraft: teams, HUB, quests, crafting stations, heat, multiblocks and machines,
+simulated by a Rust core. Runs on its own in a vanilla world.
+'''
+
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "[${neo_version},)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "kotlinforforge"
+type = "required"
+versionRange = "[${kff_version},)"
+ordering = "NONE"
+side = "BOTH"

@@ -67,8 +67,11 @@ jobs:
         run: ./gradlew build -x cargoTest --stacktrace
       - uses: actions/upload-artifact@v7
         with:
-          name: satiscraft-jar
-          path: neoforge/build/libs/satiscraft-*.jar
+          name: satiscraft-jars
+          # Everything scripts/deploy-test.sh needs: the three mods and their dependency mods.
+          path: |
+            mods/*/build/libs/satiscraft*.jar
+            modpack/build/serverMods/*.jar
           if-no-files-found: error
 
   version-bump:

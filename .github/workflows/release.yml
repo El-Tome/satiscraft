@@ -1,6 +1,6 @@
 name: Release
 
-# Every merge to main carries a new version: tag it and publish the server jar.
+# Every merge to main carries a new version: tag it and publish the three mod jars.
 on:
   push:
     branches: [main]
@@ -40,8 +40,8 @@ jobs:
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v6
         if: steps.version.outputs.exists == 'false'
-      # Runs on Linux x86_64, so the jar embeds the V1 server library.
-      - name: Build the jar
+      # Runs on Linux x86_64, so the engine jar embeds the server's native library.
+      - name: Build the jars
         if: steps.version.outputs.exists == 'false'
         run: ./gradlew build -x cargoTest --stacktrace
       - name: Create tag and release
@@ -52,5 +52,8 @@ jobs:
         run: |
           prerelease=""
           case "$VERSION" in 0.*) prerelease="--prerelease" ;; esac
-          gh release create "v$VERSION" "neoforge/build/libs/satiscraft-$VERSION.jar" \
+          gh release create "v$VERSION" \
+            "mods/satiscraft/build/libs/satiscraft-$VERSION.jar" \
+            "mods/satiscraft-world/build/libs/satiscraft-world-$VERSION.jar" \
+            "mods/satiscraft-primitive/build/libs/satiscraft-primitive-$VERSION.jar" \
             --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes $prerelease

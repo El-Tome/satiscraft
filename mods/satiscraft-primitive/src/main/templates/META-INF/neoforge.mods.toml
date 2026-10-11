@@ -7,11 +7,12 @@ issueTrackerURL = "https://github.com/El-Tome/satiscraft/issues"
 [[mods]]
 modId = "${mod_id}"
 version = "${mod_version}"
-displayName = "${mod_name}"
+displayName = "Satiscraft Primitive"
 authors = "${mod_authors}"
 displayURL = "https://github.com/El-Tome/satiscraft"
 description = '''
-Factory building for multiplayer servers: extract, generate power, process, transport.
+Rules of Satiscraft's Stone Age: neutralized vanilla crafting, no bare-hand harvesting,
+animals that fight back, Nether and End locked until their age.
 '''
 
 [[dependencies.${mod_id}]]
@@ -33,4 +34,11 @@ modId = "kotlinforforge"
 type = "required"
 versionRange = "[${kff_version},)"
 ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "satiscraft"
+type = "required"
+versionRange = "[${mod_version}]"
+ordering = "AFTER"
 side = "BOTH"

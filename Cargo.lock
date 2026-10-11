@@ -26,11 +26,11 @@ dependencies = [
 
 [[package]]
 name = "factory-core"
-version = "0.0.1"
+version = "0.0.2"
 
 [[package]]
 name = "factory-jni"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "factory-core",
  "jni",

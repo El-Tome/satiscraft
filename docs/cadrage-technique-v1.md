@@ -1,25 +1,29 @@
-# Cadrage technique – Mod usine NeoForge (V1)
+# Cadrage technique – Mod usine NeoForge (0.1 · âge de pierre)
 
 Oct 10, 2026 · @tom
 
-## Objectif de la V1
+## Objectif de la 0.1
 
-La V1 livre un mod NeoForge jouable en multijoueur sur un serveur dédié Linux, avec la boucle complète d'un jeu d'usine : extraire, produire de l'électricité, transformer, transporter. Toute la logique vit dans un cœur Rust indépendant de Minecraft, pour pouvoir le rebrancher un jour sur Pumpkin.
+La 0.1.0 livre l'âge de pierre complet, jouable en multijoueur sur un serveur dédié Linux : 2 à 3 heures de progression, de l'arrivée sans rien jusqu'à la première loupe de fer. Le contenu de jeu est décrit dans Cadrage gameplay – Âge de pierre, ce document dit comment le construire.
 
-**Dans le périmètre V1**
+Toute la logique vit dans un cœur Rust indépendant de Minecraft, pour pouvoir le rebrancher un jour sur Pumpkin. La 0.1 pose aussi tout le socle technique dont les âges suivants dépendront.
 
-- Extraction : nœuds de ressources et filons de minerais custom, extracteurs.
-- Énergie : générateurs, câbles, batterie, disjoncteur en cas de surcharge.
-- Transformation : machines de 1 bloc (four électrique, broyeur, constructeur, assembleur).
-- Transport : tapis roulants animés (droits, virages, entrées et sorties de machines), coffre de stockage.
-- Progression et multijoueur : HUB par équipe, paliers débloquables, permissions sur les blocs du mod.
-- Simulation multithreadée au maximum, calculée par débits pour les chaînes de machines.
+**Dans le périmètre 0.1**
 
-**Hors périmètre V1**
+- Socle : cœur Rust, pont JNI, mod Kotlin, sauvegarde, contenu en TOML, CI et déploiement sur le serveur de test.
+- Équipes et HUB : kit de campement, 4 niveaux de campement, rôles et permissions.
+- Progression : quêtes principales et optionnelles, écran des plans révélés au fil du campement.
+- Fabrication primitive : récolte au sol, assemblage en main, mini-jeux de taille et de façonnage, postes custom.
+- Chaleur : feu de camp, four à fosse, four à métaux, soufflet, fonte et coulée en moules.
+- Multiblocs avec plan fantôme : four à fosse et four à métaux.
+- Monde : minerais du mod, morceaux visibles en surface, vanilla neutralisé, animaux qui ripostent.
+- Simulation multithreadée, modes exact et agrégé, appliqués d'abord aux fours.
 
-- Mode solo et builds Windows/macOS.
-- Compatibilité avec d'autres mods (Forge Energy, tuyaux tiers).
-- Échanges entre équipes, bâtiments multiblocs, pentes et ascenseurs de tapis.
+**Hors périmètre 0.1**
+
+- Âge du fer et cinétique (0.2), électricité et tapis (0.3), électronique (0.4).
+- Mode solo et builds Windows et macOS.
+- Compatibilité avec d'autres mods, échanges entre équipes, placement automatique des multiblocs.
 
 ## Décisions validées
 
@@ -39,8 +43,8 @@ Ces choix ont été tranchés les 10 et 11 octobre 2026 et servent de base à to
 | Contenu | Fichiers TOML dans le cœur | Tout ce qui peut être configurable l'est |
 | Cible de jeu | Serveur dédié multijoueur | Pas de solo en V1 |
 | Équipes | 1 équipe par joueur, HUB déplaçable, 4 rôles | Rôles extensibles par la config |
-| Tapis | Animés, dans la V1 | Le plus gros chantier de rendu |
-| Dépôt | Monorepo, Gradle appelle cargo | Un seul build, une seule CI |
+| Tapis | Animés, en 0.3 avec l'électricité | Le plus gros chantier de rendu |
+| Dépôt | Monorepo, 3 mods (moteur, monde, règles primitives) + modpack | Un seul build, une seule CI, une version commune |
 | Code | En anglais, un test par fonction | Couverture vérifiée en CI |
 | Versions | 0.0.1 au départ, patch par issue, mineure par jalon | V1 = 0.1.0, V2 = 0.2.0 |
 
@@ -55,6 +59,23 @@ Règles qui en découlent :
 - `factory-core` n'importe aucun crate lié à JNI, à Minecraft ou au réseau. Il compile aussi en `wasm32`, ce que la CI vérifie.
 - `factory-jni` ne contient aucune règle de jeu : uniquement de la traduction, la gestion des panics et le parallélisme.
 - La couche Kotlin ne prend aucune décision de gameplay. Si une règle se retrouve en Kotlin, c'est un bug d'architecture.
+
+**Découpage en mods**
+
+Le projet est livré en trois mods et un modpack. Le moteur apporte les systèmes, les deux autres mods façonnent l'expérience de l'âge de pierre, et peuvent être retirés pour utiliser les machines dans un monde vanilla.
+
+| Mod | Contenu | Langages |
+| --- | --- | --- |
+| `factory` (le moteur) | Cœur Rust, JNI, équipes, HUB, quêtes, plans, mini-jeux, postes, chaleur, multiblocs, machines, contenu par défaut en TOML | Rust + Kotlin |
+| `factory-world` | Génération : placement des minerais, morceaux en surface, contenu des coffres de structures, hauteur du monde | Kotlin + datapack |
+| `factory-primitive` | Règles de l'expérience : vanilla neutralisé, pas de récolte à mains nues, riposte des animaux, Nether et End bloqués | Kotlin + datapack |
+| Le modpack | Config, surcharges de contenu, assemblage des trois mods | Données uniquement |
+
+- **Seul le moteur déclare des blocs et des items**, à partir du TOML. `factory-world` ne fait que placer les minerais du moteur, `factory-primitive` ne fait que restreindre. Aucune dépendance entre ces deux-là.
+- `factory-world` et `factory-primitive` dépendent du moteur, jamais l'inverse. Le moteur fonctionne seul.
+- Le moteur expose aux autres mods une petite API Kotlin : lire l'âge atteint par une équipe, savoir si un item ou un bloc est débloqué. C'est ce qui permet à `factory-primitive` de rouvrir le vanilla au bon âge.
+- Un futur mod de compatibilité (Forge Energy, inventaires d'autres mods) suivra le même modèle.
+- Un seul dépôt, un sous-projet Gradle par mod, **une seule version commune** et une seule release pour les trois.
 
 ## Le contrat entre le cœur et les plateformes
 
@@ -202,7 +223,7 @@ La couche Kotlin enregistre ce que Minecraft doit connaître et affiche l'état 
 - Un menu générique sert toutes les machines (slots d'entrée, de sortie, jauge d'énergie, progression), son agencement vient du TOML.
 - Un test de non-duplication rejoue des milliers de clics aléatoires et vérifie que le total d'items ne change jamais.
 
-**Tapis animés**
+**Tapis animés (0.3)**
 
 - La bande qui défile : une texture animée par fichier `.mcmeta`, aucun travail d'animation.
 - Les modèles : quelques pavés faits dans Blockbench (tapis droit, virage, entrée de machine).
@@ -215,13 +236,43 @@ La couche Kotlin enregistre ce que Minecraft doit connaître et affiche l'état 
 - Un paquet réseau par type d'effet visible, envoyé seulement aux joueurs qui ont le chunk chargé.
 - Le client ne fait tourner aucune simulation : il affiche et interpole.
 
+## Systèmes de jeu de la 0.1
+
+Chaque système de l'âge de pierre suit la même règle : la décision dans le cœur Rust, l'affichage dans Kotlin, les valeurs en TOML.
+
+| Système | Cœur Rust | Couche Kotlin |
+| --- | --- | --- |
+| Quêtes et plans | Objectifs, progression par équipe, déblocages | Écran des quêtes et des plans, ouvert par une touche dédiée |
+| Niveaux de campement | Niveau porté par l'équipe, conditions d'amélioration | Modèle du HUB qui change selon le niveau |
+| Mini-jeux de taille et de façonnage | Motifs, validation du résultat, tirage d'échec | Grille interactive côté client |
+| Assemblage en main | Recettes d'assemblage, validation | Détection du clic droit sur l'item posé au sol |
+| Postes custom | Recettes de chaque poste | Blocs et menus |
+| Chaleur des fours | Température, combustible, recettes à seuil | Jauge, particules, état visuel du four |
+| Multiblocs | Gabarits, validation, état formé | Plan fantôme posé, rendu des blocs manquants |
+| Monde | — | factory-world : minerais, morceaux en surface, contenu des coffres de structures |
+| Vanilla neutralisé | — | factory-primitive : retrait des recettes, blocage de l'établi, du four, du commerce, du Nether et de l'End |
+| Faune | — | factory-primitive : riposte ajoutée aux animaux vanilla |
+
+**Points d'attention**
+
+- Mini-jeux : le client affiche la grille et envoie la suite des coups. Le cœur rejoue la séquence et décide du résultat, y compris un silex qui casse au mauvais endroit. Un client modifié ne peut donc pas tricher.
+- Assemblage en main : un item posé au sol est une entité que Minecraft peut faire disparaître. L'assemblage se fait d'un coup au clic, sans état intermédiaire qui dure.
+- Chaleur : premier vrai usage des deux modes de simulation. Un four près d'un joueur chauffe tick par tick, un four éloigné passe en bilan agrégé de combustible et de production.
+- Plans fantômes : le gabarit est envoyé au client, qui dessine les blocs manquants en transparence. La validation reste côté serveur.
+- Vanilla neutralisé : une liste en config dit ce qui est bloqué (recettes, blocs, dimensions) et jusqu'à quel âge, pour pouvoir rouvrir chaque élément au bon moment.
+
+**Ajouts au contrat**
+
+- Commandes : `SubmitMinigame`, `AssembleInHand`, `PlaceBlueprint`, `DeliverToHub`, `UpgradeCamp`, `FuelFurnace`.
+- Effets : `QuestProgressed`, `PlansUnlocked`, `CampLevelChanged`, `MultiblockFormed`, `HeatChanged`, `MinigameResolved`.
+
 ## Équipes, HUB et permissions
 
 Chaque joueur appartient à au plus une équipe. L'équipe possède un HUB, sa progression et tous les blocs du mod posés par ses membres.
 
 **Cycle de vie d'une équipe**
 
-- Un joueur sans équipe qui pose un HUB en crée une automatiquement et en devient chef. Une équipe a un seul HUB posé à la fois. Le chef peut le casser et le reposer ailleurs : l'équipe et sa progression sont stockées dans l'équipe, pas dans le bloc, donc rien n'est perdu.
+- Chaque joueur reçoit un kit de campement à sa première connexion. Le poser crée son équipe et en fait le chef. S'il rejoint plutôt une équipe existante, le kit peut disparaître ou être modifié selon son contenu. Une équipe a un seul HUB posé à la fois. Le chef peut le casser et le reposer ailleurs : l'équipe et sa progression sont stockées dans l'équipe, pas dans le bloc, donc rien n'est perdu.
 - Le chef et les officiers invitent, le joueur invité accepte. Un joueur déjà dans une équipe doit la quitter avant d'en rejoindre une autre.
 - Quand un joueur quitte l'équipe, ses machines **restent à l'équipe**.
 - Si le chef part, la direction passe au membre de rang le plus élevé, puis au plus ancien à rang égal.
@@ -278,16 +329,29 @@ Tout le contenu de jeu se décrit en fichiers TOML embarqués dans le mod, et un
 **Organisation**
 
 ```
+# moteur (factory)
 content/
-  items.toml        # items et ressources
-  machines.toml     # machines, slots, consommation
-  recipes.toml      # recettes par machine
-  generators.toml   # générateurs et carburants
-  logistics.toml    # tapis, câbles, vitesses, capacités
-  progression.toml  # paliers du HUB et déblocages
-  worldgen.toml     # filons et nœuds de ressources
-  teams.toml        # rangs et droits
-config.toml         # réglages serveur (pas de simulation, threads, files)
+  items.toml        # items, ressources, outils, blocs de minerai
+  stations.toml     # postes custom et leurs recettes
+  minigames.toml    # motifs de taille (silex, pierre) et de façonnage (argile)
+  assembly.toml     # assemblages en main
+  heat.toml         # fours, combustibles, températures
+  multiblocks.toml  # gabarits des multiblocs
+  quests.toml       # quêtes principales et optionnelles
+  progression.toml  # niveaux de campement et plans révélés
+  teams.toml        # rôles et droits
+  machines.toml     # machines (à partir de la 0.2)
+  recipes.toml      # recettes des machines
+  logistics.toml    # tapis, câbles (à partir de la 0.3)
+
+# factory-world
+worldgen.toml       # placement des minerais, morceaux en surface
+
+# factory-primitive
+vanilla.toml        # ce qui est bloqué, et jusqu'à quel âge
+
+# serveur
+config.toml         # threads, budget de tick, politiques d'activité
 ```
 
 **Exemple**
@@ -326,19 +390,23 @@ Un seul dépôt git, une seule commande de build (`./gradlew build`) qui compile
 
 ```
 factory/
-  Cargo.toml              # workspace Rust
+  Cargo.toml                # workspace Rust
   crates/
-    factory-core/         # logique pure + content/
-    factory-jni/          # pont JNI
-  neoforge/               # mod Kotlin (Gradle)
-  fixtures/               # sauvegardes de référence par version
-  scripts/deploy-test.sh  # envoi vers le serveur de test
-  CLAUDE.md               # règles pour l'agent
+    factory-core/           # logique pure + contenu par défaut (content/)
+    factory-jni/            # pont JNI
+  mods/
+    factory/                # le moteur (Kotlin), embarque la .so
+    factory-world/          # génération du monde
+    factory-primitive/      # règles de l'âge de pierre, vanilla neutralisé
+  modpack/                  # config et surcharges de contenu
+  fixtures/                 # sauvegardes de référence par version
+  scripts/deploy-test.sh    # envoi vers le serveur de test
+  CLAUDE.md                 # règles pour l'agent
 ```
 
 **Build**
 
-- Une tâche Gradle lance `cargo build --release -p factory-jni` et copie la `.so` dans les ressources du jar.
+- Une tâche Gradle lance `cargo build --release -p factory-jni` et copie la `.so` dans les ressources du jar du moteur. Les trois mods sont construits ensemble et portent la même version.
 - Les versions de Minecraft, NeoForge, Kotlin for Forge et Rust sont épinglées (`rust-toolchain.toml`, propriétés Gradle). Une montée de version est une tâche à part.
 
 **Tests**
@@ -359,7 +427,7 @@ factory/
 **Déploiement**
 
 - L'agent travaille sur une VM Proxmox dédiée, sans accès au nœud Pterodactyl.
-- `deploy-test.sh` utilise une clé API client d'un utilisateur Pterodactyl qui n'a accès qu'au serveur de test : envoi du jar, puis redémarrage.
+- `deploy-test.sh` utilise une clé API client d'un utilisateur Pterodactyl qui n'a accès qu'au serveur de test : envoi des trois jars, puis redémarrage.
 - La prod est mise à jour à la main, après validation sur le serveur de test et sauvegarde du monde.
 - Les versions sont taguées (`v1.0.0`) et chaque tag produit un jar en artefact de CI.
 
@@ -398,16 +466,22 @@ Tout le code est en anglais, chaque fonction a ses tests, et la version monte à
 - [ ] Version exacte de Minecraft et de NeoForge : la plus récente stable au démarrage, à vérifier ensemble.
 - [ ] Un identifiant de simulation pour tout le serveur, ou un par dimension.
 - [ ] Comportement exact de la wilderness : pause des îlots et casse libre, ou reprise possible par une autre équipe.
-- [ ] Ce que font les usines d'une équipe pendant que son HUB est démonté.
+- [ ] Ce que font les fours et machines d'une équipe pendant que son HUB est démonté.
 - [ ] Ce qui compte comme « interagir » pour passer un îlot en mode exact (GUI ouverte, distance au joueur).
 - [ ] Seuil de couverture de tests minimal.
-- [ ] Cadrage du gameplay (liste des machines, paliers, filons et nœuds) dans un document séparé.
+- [ ] Cinétique en 0.2 : dépendre de Create, dont le réseau vit en Java et ne tourne que dans les chunks chargés, ou écrire un cinétique maison dans le cœur, compatible avec le mode agrégé.
+- [ ] Électricité en 0.3 : modèle en tension et intensité à définir.
 
-**Reporté en V2 ou plus tard**
+**Reporté après la 0.1**
 
+- 0.2 : âge du fer, cinétique (force et vitesse), premières machines automatisées.
+- 0.3 : électricité, câbles, tapis animés.
+- 0.4 : électronique et logique de pilotage de la production.
 - Mode solo et builds Windows, macOS Intel et ARM.
 - Compatibilité Forge Energy et inventaires des autres mods, dans le mod ou dans un mod de compatibilité séparé.
-- Bâtiments multiblocs posés d'un coup, avec modèle 3D.
+- Placement automatique des multiblocs.
 - Pentes, ascenseurs et séparateurs de tapis.
 - Échanges entre équipes par une machine dédiée.
+- Nouveaux animaux, avec leurs modèles et animations.
+- Hauteur du monde, niveau de la mer et rivières qui coulent.
 - Portage vers Pumpkin si le support des mods arrive.
