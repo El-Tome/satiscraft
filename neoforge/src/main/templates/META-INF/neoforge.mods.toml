@@ -1,0 +1,36 @@
+# Generated from src/main/templates by the generateModMetadata task.
+modLoader = "kotlinforforge"
+loaderVersion = "[6,)"
+license = "${mod_license}"
+issueTrackerURL = "https://github.com/El-Tome/satiscraft/issues"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+authors = "${mod_authors}"
+displayURL = "https://github.com/El-Tome/satiscraft"
+description = '''
+Factory building for multiplayer servers: extract, generate power, process, transport.
+'''
+
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "[${neo_version},)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "kotlinforforge"
+type = "required"
+versionRange = "[${kff_version},)"
+ordering = "NONE"
+side = "BOTH"

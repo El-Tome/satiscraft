@@ -1,0 +1,38 @@
+### Rust ###
+/target/
+
+### Gradle ###
+.gradle/
+.kotlin/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/**/build/
+
+### Minecraft dev runs ###
+run/
+!**/src/**/run/
+**/src/generated/**/.cache/
+repo/
+!**/src/**/repo/
+
+### IDEs ###
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+!**/src/**/out/
+.run/
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+!**/src/**/bin/
+
+### OS ###
+.DS_Store
+
+### Secrets ###
+.env*
+!.env*.example

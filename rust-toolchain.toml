@@ -1,0 +1,7 @@
+# Pinned toolchain. Upgrading Rust is a dedicated task.
+[toolchain]
+channel = "1.98.1"
+profile = "minimal"
+components = ["rustfmt", "clippy", "llvm-tools-preview"]
+# x86_64 Linux is the V1 server target; wasm32 guards factory-core portability (Pumpkin).
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]

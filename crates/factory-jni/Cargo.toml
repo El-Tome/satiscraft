@@ -1,0 +1,19 @@
+[package]
+name = "factory-jni"
+description = "JNI bridge between the NeoForge mod and factory-core: translation, panic handling, threading."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+factory-core.workspace = true
+jni.workspace = true
+
+[lints]
+workspace = true

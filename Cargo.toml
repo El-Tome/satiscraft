@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = ["crates/factory-core", "crates/factory-jni"]
+
+# Single source of truth for the mod version: Gradle reads it from here.
+# Bump the patch in every PR that closes an issue, the minor at each milestone.
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.98"
+license = "PolyForm-Noncommercial-1.0.0"
+repository = "https://github.com/El-Tome/satiscraft"
+publish = false
+
+[workspace.dependencies]
+factory-core = { path = "crates/factory-core" }
+jni = "0.22.4"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# Panics must unwind so that the JNI layer can catch them: never switch to "abort".
+[profile.dev]
+panic = "unwind"
+
+[profile.release]
+panic = "unwind"

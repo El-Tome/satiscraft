@@ -1,0 +1,56 @@
+name: Release
+
+# Every merge to main carries a new version: tag it and publish the server jar.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Read version
+        id: version
+        run: |
+          version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\(.*\)"/\1/p;}' Cargo.toml)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install the pinned toolchain (rust-toolchain.toml)
+        if: steps.version.outputs.exists == 'false'
+        run: rustup toolchain install
+      - uses: actions/setup-java@v6
+        if: steps.version.outputs.exists == 'false'
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v6
+        if: steps.version.outputs.exists == 'false'
+      # Runs on Linux x86_64, so the jar embeds the V1 server library.
+      - name: Build the jar
+        if: steps.version.outputs.exists == 'false'
+        run: ./gradlew build -x cargoTest --stacktrace
+      - name: Create tag and release
+        if: steps.version.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          prerelease=""
+          case "$VERSION" in 0.*) prerelease="--prerelease" ;; esac
+          gh release create "v$VERSION" "neoforge/build/libs/satiscraft-$VERSION.jar" \
+            --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes $prerelease

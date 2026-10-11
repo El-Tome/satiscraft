@@ -1,0 +1,14 @@
+[package]
+name = "factory-core"
+description = "Platform-independent factory simulation: no Minecraft, JNI or network code."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

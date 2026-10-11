@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Minimum line coverage of factory-core (open point of the design doc, adjust here).
+  CORE_COVERAGE_MIN_LINES: 80
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, tests, coverage, wasm32)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      # factory-jni needs a JVM to run its exports: the Kotlin JNI tests of the mod job cover it.
+      - name: Tests and factory-core coverage
+        run: >
+          cargo llvm-cov --workspace --locked
+          --ignore-filename-regex 'crates/factory-jni/'
+          --fail-under-lines "$CORE_COVERAGE_MIN_LINES"
+      - name: factory-core builds for wasm32 (Pumpkin portability)
+        run: cargo build -p factory-core --target wasm32-unknown-unknown --locked
+
+  dependencies:
+    name: Dependency audit (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  mod:
+    name: Mod (Gradle build, Kotlin and JNI tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v6
+      # Rust tests already ran in the rust job.
+      - name: Build
+        run: ./gradlew build -x cargoTest --stacktrace
+      - uses: actions/upload-artifact@v7
+        with:
+          name: satiscraft-jar
+          path: neoforge/build/libs/satiscraft-*.jar
+          if-no-files-found: error
+
+  version-bump:
+    name: Version bumped
+    if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-version-bump')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Compare with the base branch
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          read_version() { sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\(.*\)"/\1/p;}'; }
+          base="$(git show "origin/$BASE_REF:Cargo.toml" | read_version)"
+          head="$(read_version < Cargo.toml)"
+          echo "base: $base, head: $head"
+          if [ "$base" = "$head" ] || [ "$(printf '%s\n%s\n' "$base" "$head" | sort -V | tail -n 1)" != "$head" ]; then
+            echo "::error file=Cargo.toml::Bump [workspace.package] version (patch per issue, minor per milestone), or add the 'no-version-bump' label."
+            exit 1
+          fi
