@@ -2,8 +2,14 @@
 
 Factory-building mod for NeoForge (Minecraft 26.2, dedicated Linux servers) whose whole
 simulation lives in a Rust core, so that it can later be plugged into Pumpkin.
-The design reference is `docs/cadrage-technique-v1.md` (French): read the relevant
-section before any non-trivial change. If code and doc disagree, ask.
+Design references (French), to read before any non-trivial change:
+
+- `docs/cadrage-technique-v1.md`: architecture, contract, persistence, build.
+- `docs/cadrage-gameplay-age-de-pierre.md`: gameplay of 0.1.0, the Stone Age.
+
+Roadmap: 0.1 Stone Age, 0.2 Iron Age and kinetics, 0.3 electricity and conveyors,
+0.4 electronics. The technical framing predates this split: for version scope, the
+gameplay doc wins. If code and docs disagree on anything else, ask.
 
 ## Layout
 
@@ -14,6 +20,7 @@ crates/factory-core/       pure game logic + content/ (TOML); no MC, JNI or netw
 crates/factory-jni/        JNI bridge: translation, panic handling, threading only
 neoforge/                  Kotlin mod (ModDevGradle + Kotlin for Forge)
 fixtures/                  reference saves, one per released version
+docs/                      design documents (French)
 scripts/deploy-test.sh     deploys to the TEST server only
 gradle.properties          pinned MC / NeoForge / Kotlin / KFF versions, mod metadata
 ```
@@ -69,7 +76,7 @@ The Gradle build compiles `factory-jni` for the host and embeds it under
   energy conserved, parallel == sequential). Kotlin: JUnit for translation, one NeoForge
   GameTest per block and per menu.
 - Versions: bump the patch of `[workspace.package] version` in every PR that closes an issue,
-  the minor at each milestone (V1 = 0.1.0). CI fails otherwise; the `no-version-bump` label
+  the minor at each milestone (0.1.0 = Stone Age). CI fails otherwise; the `no-version-bump` label
   exempts PRs that ship nothing (CI, docs). Merging to main tags `vX.Y.Z` and publishes the
   jar, with release notes from PR titles.
 - Toolchain and dependency versions are pinned; upgrading one is a separate task.
