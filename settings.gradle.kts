@@ -1,10 +1,7 @@
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         gradlePluginPortal()
-    }
-    plugins {
-        id("net.neoforged.moddev") version providers.gradleProperty("moddev_version").get()
-        kotlin("jvm") version providers.gradleProperty("kotlin_version").get()
     }
 }
 
@@ -14,4 +11,8 @@ plugins {
 
 rootProject.name = "satiscraft"
 
-include("neoforge")
+// One Gradle project per mod, all at the version of the Cargo workspace.
+include(":mods:satiscraft")
+include(":mods:satiscraft-world")
+include(":mods:satiscraft-primitive")
+include(":modpack")
