@@ -50,8 +50,13 @@ The Gradle build compiles `factory-jni` for the host and embeds it under
   `src/exports.rs`, for `#[unsafe(no_mangle)]`. Each export is a thin wrapper:
   `with_env(...)` then `.resolve::<ThrowFactoryCoreException>()`. Any new `unsafe` needs
   a justification comment and explicit maintainer approval in the PR.
-- Kotlin: registers blocks/items/menus and displays what the core returns. It never stores
-  simulated state nor validates gameplay. A gameplay rule in Kotlin is an architecture bug.
+- Core vs platform (decided 2026-10-11): the core owns everything that progresses or is
+  simulated: teams, camp levels, quests, blueprints, machines and heat, station recipes,
+  mini-game validation and luck draws. Rules native to the Minecraft world (mob AI, harvest
+  rules, loot, worldgen, removal of vanilla recipes) are enforced by Kotlin and datapacks,
+  but their values come from the core's TOML content and unlocks are asked to the core.
+- Kotlin registers blocks/items/menus and displays what the core returns. It never stores
+  simulated state nor validates core gameplay: doing so is an architecture bug.
 - Contract: commands in, effects out (`submit`, `step`/`tick`, `query`, `save`, `load`).
   Positions are `(dimension, x, y, z)` integers, items string ids (`satiscraft:bauxite`),
   players UUIDs. No Minecraft type crosses. Adding a field is fine; removing or changing one
