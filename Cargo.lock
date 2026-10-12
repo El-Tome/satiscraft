@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "factory-core"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "postcard",
  "proptest",
@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "factory-jni"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "factory-core",
  "jni",

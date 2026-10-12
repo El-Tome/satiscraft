@@ -52,6 +52,7 @@ dependencies {
 
     testImplementation(platform("org.junit:junit-bom:${requiredProperty("junit_version")}"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.slf4j:slf4j-api:${requiredProperty("slf4j_version")}")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

@@ -67,6 +67,9 @@ enum class Rejection {
 
     /** The source does not hold the items. */
     MissingItems,
+
+    /** The simulation faulted while handling the batch; also answered by Kotlin when a core call fails. */
+    Faulted,
     ;
 
     companion object : Codec<Rejection> {

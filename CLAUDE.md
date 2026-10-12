@@ -74,6 +74,10 @@ server; `-Prust_target=<triple>` overrides the target.
   are asked to the engine.
 - The engine's Kotlin registers blocks/items/menus and displays what the core returns. No
   Kotlin code stores simulated state or validates core gameplay: doing so is an architecture bug.
+- Event handlers queue their commands on `Satiscraft.commands`; `CoreDriver` submits them and
+  steps the core once per server tick (`ServerTickEvent.Post`), then dispatches the effects.
+  A handler that changes the world before the core answers reverts it on `Rejected`,
+  `Faulted` included: after a core failure, the driver refuses every command until restart.
 - Contract (`factory_core::contract`): commands in, effects out (`submit`, `step`/`tick`,
   `query`, `save`, `load`). Positions are a dimension id (`minecraft:overworld`) and integer
   `x, y, z`, items string ids (`satiscraft:bauxite`), players UUIDs. No Minecraft type

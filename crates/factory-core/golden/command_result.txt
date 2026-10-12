@@ -5,3 +5,4 @@
 01 01	Rejected(NotUnlocked)
 01 02	Rejected(NoSpace)
 01 03	Rejected(MissingItems)
+01 04	Rejected(Faulted)

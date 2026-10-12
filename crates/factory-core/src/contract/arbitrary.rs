@@ -50,6 +50,7 @@ fn rejection() -> impl Strategy<Value = Rejection> {
         Just(Rejection::NotUnlocked),
         Just(Rejection::NoSpace),
         Just(Rejection::MissingItems),
+        Just(Rejection::Faulted),
     ]
 }
 
