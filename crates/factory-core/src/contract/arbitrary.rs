@@ -3,8 +3,8 @@
 use proptest::prelude::*;
 
 use super::{
-    Command, CommandResult, DimensionId, Effect, ItemId, MachineId, PlayerId, Position, Query,
-    QueryResult, Rejection, TeamId,
+    Command, CommandResult, ContentFile, ContentFiles, DimensionId, Effect, ItemId, MachineId,
+    PlayerId, Position, Query, QueryResult, Rejection, TeamId,
 };
 
 /// Valid `namespace:path` text.
@@ -38,7 +38,10 @@ pub(crate) fn machine_id() -> impl Strategy<Value = MachineId> {
 }
 
 pub(crate) fn command() -> impl Strategy<Value = Command> {
-    any::<u64>().prop_map(|nonce| Command::Ping { nonce })
+    prop_oneof![
+        any::<u64>().prop_map(|nonce| Command::Ping { nonce }),
+        Just(Command::PanicOnNextStep),
+    ]
 }
 
 fn rejection() -> impl Strategy<Value = Rejection> {
@@ -67,4 +70,12 @@ pub(crate) fn query() -> impl Strategy<Value = Query> {
 
 pub(crate) fn query_result() -> impl Strategy<Value = QueryResult> {
     any::<u64>().prop_map(QueryResult::Tick)
+}
+
+pub(crate) fn content_files() -> impl Strategy<Value = ContentFiles> {
+    prop::collection::vec(
+        (".{0,24}", ".{0,64}").prop_map(|(path, text)| ContentFile { path, text }),
+        0..4,
+    )
+    .prop_map(|files| ContentFiles { files })
 }
