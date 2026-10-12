@@ -14,6 +14,8 @@ pub enum CodecError {
     Decode(String),
     /// The value decoded, but bytes were left after it.
     TrailingBytes(usize),
+    /// No contract type has this name (see [`reencode`](super::reencode)).
+    UnknownType(String),
 }
 
 impl fmt::Display for CodecError {
@@ -24,6 +26,7 @@ impl fmt::Display for CodecError {
             Self::TrailingBytes(count) => {
                 write!(f, "cannot decode: {count} bytes left after the value")
             }
+            Self::UnknownType(name) => write!(f, "no contract type is named `{name}`"),
         }
     }
 }
@@ -106,6 +109,10 @@ mod tests {
         assert_eq!(
             CodecError::TrailingBytes(3).to_string(),
             "cannot decode: 3 bytes left after the value"
+        );
+        assert_eq!(
+            CodecError::UnknownType("x".into()).to_string(),
+            "no contract type is named `x`"
         );
     }
 }

@@ -444,7 +444,7 @@ factory/
 | Contenu | `cargo test` | Tous les TOML se chargent, pas de recette orpheline ni d'id inconnu |
 | Sauvegarde | `cargo test` | Chaque fixture se charge et migre |
 | Déterminisme | `cargo test` | Même scénario rejoué en séquentiel et en parallèle donne le même état |
-| Contrat | Gradle | Aller-retour de sérialisation Kotlin ↔ Rust |
+| Contrat | `cargo test`, Gradle | Fichiers golden écrits par le cœur et relus par Kotlin, aller-retour Kotlin → Rust → Kotlin par JNI à l'octet près |
 | En jeu | GameTests NeoForge | Poser une machine, l'alimenter, récupérer la sortie |
 
 **CI**

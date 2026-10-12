@@ -4,8 +4,9 @@ package io.github.eltome.satiscraft.core
  * JNI entry points exported by factory-jni (`crates/factory-jni/src/exports.rs`).
  *
  * Call only from the server thread. Every call may throw [FactoryCoreException].
- * Simulations are reached by a numeric id, never a pointer: prefer the [FactoryCore] handle.
- * Bytes are the postcard encoding of the contract types (`factory_core::contract`).
+ * Simulations are reached by a numeric id, never a pointer: prefer the [FactoryCore] handle,
+ * which encodes and decodes the bytes with the contract codecs of
+ * [io.github.eltome.satiscraft.core.contract].
  */
 object NativeBridge {
     init {
@@ -47,6 +48,13 @@ object NativeBridge {
     /** Frees the simulation, faulted or not. Its id is never handed out again. */
     @JvmStatic
     external fun shutdown(id: Long)
+
+    /**
+     * Decodes [bytes] as the contract type named [type] (`command`, `command_batch`,
+     * `position`...) and encodes it again, for checking the Kotlin codec against the core's.
+     */
+    @JvmStatic
+    external fun reencode(type: String, bytes: ByteArray): ByteArray
 
     /** Throws [FactoryCoreException] if the loaded core speaks another contract version. */
     fun ensureCompatible() = Contract.check(contractVersion())

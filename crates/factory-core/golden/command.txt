@@ -1,0 +1,7 @@
+# command: postcard bytes in hex, a tab, then the Rust value.
+# Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
+00 00	Ping { nonce: 0 }
+00 7f	Ping { nonce: 127 }
+00 80 01	Ping { nonce: 128 }
+00 ff ff ff ff ff ff ff ff ff 01	Ping { nonce: 18446744073709551615 }
+01	PanicOnNextStep

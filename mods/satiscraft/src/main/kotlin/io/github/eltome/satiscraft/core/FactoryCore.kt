@@ -1,26 +1,34 @@
 package io.github.eltome.satiscraft.core
 
+import io.github.eltome.satiscraft.core.contract.Command
+import io.github.eltome.satiscraft.core.contract.CommandResult
+import io.github.eltome.satiscraft.core.contract.ContentFiles
+import io.github.eltome.satiscraft.core.contract.Effect
+import io.github.eltome.satiscraft.core.contract.Query
+import io.github.eltome.satiscraft.core.contract.QueryResult
+import io.github.eltome.satiscraft.core.contract.list
+
 /**
  * Handle on one simulation of factory-core, which the JVM only knows by its numeric [id].
  *
- * Inputs and outputs are postcard bytes of the contract types. Call only from the server
- * thread. Every call may throw [FactoryCoreException]. After a panic in [submit] or [tick]
- * the simulation is faulted: every later call throws, [save] included, so a half-modified
- * state is never written. Only [close] still works.
+ * Call only from the server thread. Every call may throw [FactoryCoreException]. After a
+ * panic in [submit] or [tick] the simulation is faulted: every later call throws, [save]
+ * included, so a half-modified state is never written. Only [close] still works.
  */
 class FactoryCore private constructor(val id: Long) : AutoCloseable {
     private var closed = false
 
-    /** Applies a batch of commands and returns one result per command. */
-    fun submit(commands: ByteArray): ByteArray = NativeBridge.submit(id, commands)
+    /** Applies a batch of commands and returns one result per command, in order. */
+    fun submit(commands: List<Command>): List<CommandResult> =
+        resultBatch.decode(NativeBridge.submit(id, commandBatch.encode(commands)))
 
     /** Steps the simulation once and returns its effects. */
-    fun tick(): ByteArray = NativeBridge.tick(id)
+    fun tick(): List<Effect> = effectBatch.decode(NativeBridge.tick(id))
 
     /** Answers a read-only query. */
-    fun query(query: ByteArray): ByteArray = NativeBridge.query(id, query)
+    fun query(query: Query): QueryResult = QueryResult.decode(NativeBridge.query(id, Query.encode(query)))
 
-    /** The whole simulated state, for [load]. */
+    /** The whole simulated state, opaque to Kotlin, for [load]. */
     fun save(): ByteArray = NativeBridge.save(id)
 
     /** Frees the simulation, faulted or not. Later calls throw; closing again does nothing. */
@@ -31,14 +39,15 @@ class FactoryCore private constructor(val id: Long) : AutoCloseable {
     }
 
     companion object {
-        /** An empty file list in postcard: the content until the engine loads its TOML. */
-        fun noContent(): ByteArray = byteArrayOf(0)
+        private val commandBatch = Command.list()
+        private val resultBatch = CommandResult.list()
+        private val effectBatch = Effect.list()
 
-        /** A new simulation running on [content], the postcard `ContentFiles`. */
-        fun create(content: ByteArray): FactoryCore = FactoryCore(NativeBridge.init(content))
+        /** A new simulation running on [content]. */
+        fun create(content: ContentFiles): FactoryCore = FactoryCore(NativeBridge.init(ContentFiles.encode(content)))
 
         /** The simulation saved in [save], running on [content]. */
-        fun load(content: ByteArray, save: ByteArray): FactoryCore =
-            FactoryCore(NativeBridge.load(content, save))
+        fun load(content: ContentFiles, save: ByteArray): FactoryCore =
+            FactoryCore(NativeBridge.load(ContentFiles.encode(content), save))
     }
 }

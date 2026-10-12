@@ -1,57 +1,55 @@
 package io.github.eltome.satiscraft.core
 
-import org.junit.jupiter.api.Assertions.assertArrayEquals
+import io.github.eltome.satiscraft.core.contract.Command
+import io.github.eltome.satiscraft.core.contract.CommandResult
+import io.github.eltome.satiscraft.core.contract.ContentFile
+import io.github.eltome.satiscraft.core.contract.ContentFiles
+import io.github.eltome.satiscraft.core.contract.Effect
+import io.github.eltome.satiscraft.core.contract.Query
+import io.github.eltome.satiscraft.core.contract.QueryResult
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 
-/**
- * Lifecycle of simulations through the real native library, with raw postcard bytes:
- * a batch is its length then its items, an enum its variant index then its fields.
- */
+/** Lifecycle of simulations through the real native library. */
 class FactoryCoreTest {
-    private val pingBatch = bytes(1, 0, 42) // [Command::Ping { nonce: 42 }]
-    private val panicBatch = bytes(1, 1) // [Command::PanicOnNextStep]
-    private val oneAccepted = bytes(1, 0) // [CommandResult::Accepted]
-    private val onePong = bytes(1, 0, 42) // [Effect::Pong { nonce: 42 }]
-    private val noEffect = bytes(0)
-    private val tickQuery = bytes(0) // Query::Tick
+    private val ping = listOf(Command.Ping(42u))
+    private val pong = listOf(Effect.Pong(42u))
 
-    private fun bytes(vararg values: Int) = ByteArray(values.size) { values[it].toByte() }
-
-    /** QueryResult::Tick(ticks), for a tick count under 128 (one varint byte). */
-    private fun tickAnswer(ticks: Int) = bytes(0, ticks)
+    private fun create() = FactoryCore.create(ContentFiles())
 
     @Test
     fun `a command comes back as an effect on the next tick`() {
-        FactoryCore.create(FactoryCore.noContent()).use { core ->
-            assertArrayEquals(oneAccepted, core.submit(pingBatch))
-            assertArrayEquals(onePong, core.tick())
-            assertArrayEquals(noEffect, core.tick())
-            assertArrayEquals(tickAnswer(2), core.query(tickQuery))
+        create().use { core ->
+            assertEquals(listOf(CommandResult.Accepted), core.submit(ping))
+            assertEquals(pong, core.tick())
+            assertEquals(emptyList<Effect>(), core.tick())
+            assertEquals(QueryResult.Tick(2u), core.query(Query.Tick))
         }
     }
 
     @Test
     fun `load resumes a saved simulation`() {
-        val saved = FactoryCore.create(FactoryCore.noContent()).use { core ->
+        val saved = create().use { core ->
             core.tick()
-            core.submit(pingBatch)
+            core.submit(ping)
             core.save()
         }
-        FactoryCore.load(FactoryCore.noContent(), saved).use { core ->
-            assertArrayEquals(tickAnswer(1), core.query(tickQuery))
-            assertArrayEquals(onePong, core.tick())
+        val content = ContentFiles(listOf(ContentFile("config.toml", "threads = 2")))
+        FactoryCore.load(content, saved).use { core ->
+            assertEquals(QueryResult.Tick(1u), core.query(Query.Tick))
+            assertEquals(pong, core.tick())
         }
     }
 
     @Test
     fun `a closed simulation is gone and its id never comes back`() {
-        val first = FactoryCore.create(FactoryCore.noContent())
+        val first = create()
         first.close()
         assertDoesNotThrow { first.close() }
-        FactoryCore.create(FactoryCore.noContent()).use { second ->
+        create().use { second ->
             assertTrue(second.id > first.id)
             val error = assertThrows<FactoryCoreException> { first.tick() }
             assertTrue("no simulation ${first.id}" in error.message!!, error.message)
@@ -67,28 +65,28 @@ class FactoryCoreTest {
 
     @Test
     fun `malformed bytes raise without faulting`() {
-        assertThrows<FactoryCoreException> { FactoryCore.create(bytes()) }
-        assertThrows<FactoryCoreException> { FactoryCore.load(FactoryCore.noContent(), bytes(0xff)) }
-        FactoryCore.create(FactoryCore.noContent()).use { core ->
-            val error = assertThrows<FactoryCoreException> { core.submit(bytes(1)) }
+        assertThrows<FactoryCoreException> { NativeBridge.init(ByteArray(0)) }
+        assertThrows<FactoryCoreException> { FactoryCore.load(ContentFiles(), byteArrayOf(-1)) }
+        create().use { core ->
+            val error = assertThrows<FactoryCoreException> { NativeBridge.submit(core.id, byteArrayOf(1)) }
             assertTrue("commands" in error.message!!, error.message)
-            assertArrayEquals(noEffect, core.tick())
+            assertEquals(emptyList<Effect>(), core.tick())
         }
     }
 
     @Test
     fun `a panic in tick faults the simulation and spares the others`() {
-        FactoryCore.create(FactoryCore.noContent()).use { other ->
-            FactoryCore.create(FactoryCore.noContent()).use { core ->
-                assertArrayEquals(oneAccepted, core.submit(panicBatch))
+        create().use { other ->
+            create().use { core ->
+                assertEquals(listOf(CommandResult.Accepted), core.submit(listOf(Command.PanicOnNextStep)))
                 val panic = assertThrows<FactoryCoreException> { core.tick() }
                 assertTrue("factory-core panic" in panic.message!!, panic.message)
-                val calls = listOf({ core.submit(pingBatch) }, { core.tick() }, { core.query(tickQuery) }, { core.save() })
+                val calls = listOf({ core.submit(ping) }, { core.tick() }, { core.query(Query.Tick) }, { core.save() })
                 for (call in calls) {
                     val error = assertThrows<FactoryCoreException> { call() }
                     assertTrue("simulation ${core.id} is faulted" in error.message!!, error.message)
                 }
-                assertArrayEquals(noEffect, other.tick())
+                assertEquals(emptyList<Effect>(), other.tick())
             }
         }
     }

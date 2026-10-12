@@ -8,13 +8,17 @@
 pub(crate) mod arbitrary;
 mod codec;
 mod content;
+#[cfg(test)]
+mod golden;
 mod ids;
 mod messages;
+mod reencode;
 
 pub use codec::{CodecError, decode, encode};
 pub use content::{ContentFile, ContentFiles};
 pub use ids::{DimensionId, IdError, ItemId, MachineId, PlayerId, Position, TeamId};
 pub use messages::{Command, CommandResult, Effect, Query, QueryResult, Rejection};
+pub use reencode::reencode;
 
 /// Version of the contract types: [`Command`], [`CommandResult`], [`Rejection`],
 /// [`Effect`], [`Query`], [`QueryResult`], the ids and positions they carry, and the
@@ -23,7 +27,8 @@ pub use messages::{Command, CommandResult, Effect, Query, QueryResult, Rejection
 /// The encoding is positional (postcard): fields in declaration order, enum variants by
 /// index. Kotlin mirrors it and ships in the same jar, so adding a field or appending a
 /// variant keeps the version; removing, reordering or changing one bumps it, together with
-/// Kotlin's `Contract.VERSION`.
+/// Kotlin's `Contract.VERSION`. Every change is mirrored in Kotlin and checked against the
+/// golden files in `crates/factory-core/golden/` (see the `golden` test module).
 pub const CONTRACT_VERSION: u16 = 1;
 
 #[cfg(test)]

@@ -1,0 +1,3 @@
+# query: postcard bytes in hex, a tab, then the Rust value.
+# Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
+00	Tick

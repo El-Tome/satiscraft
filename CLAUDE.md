@@ -34,6 +34,7 @@ gradle.properties          pinned MC / NeoForge / Kotlin / KFF versions, shared 
 ```sh
 ./gradlew build                      # everything: cargo build, Rust + Kotlin + JNI tests, 3 jars
 cargo test --workspace               # Rust tests only
+UPDATE_GOLDEN=1 cargo test -p factory-core golden   # regenerate the contract golden files
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 cargo build -p factory-core --target wasm32-unknown-unknown   # portability guard
@@ -78,7 +79,9 @@ server; `-Prust_target=<triple>` overrides the target.
   `x, y, z`, items string ids (`satiscraft:bauxite`), players UUIDs. No Minecraft type
   crosses. The postcard encoding is positional: append enum variants, never reorder them.
   Adding a field is fine; removing or changing one bumps `factory_core::CONTRACT_VERSION`
-  and Kotlin `Contract.VERSION` together.
+  and Kotlin `Contract.VERSION` together. Kotlin mirrors every contract type in `core.contract`:
+  a change regenerates the golden files (`crates/factory-core/golden/`), then updates the
+  Kotlin types and `ContractSamples`, or the tests on either side fail.
 - JNI: one call per batch, never per machine; byte arrays (postcard) in and out; the JVM only
   holds numeric simulation ids. Called from the server thread only; the core's thread pool
   never calls back into the JVM. Panics always unwind (`panic = "unwind"`) and become

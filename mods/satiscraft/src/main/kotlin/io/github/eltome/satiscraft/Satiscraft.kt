@@ -2,6 +2,7 @@ package io.github.eltome.satiscraft
 
 import io.github.eltome.satiscraft.core.FactoryCore
 import io.github.eltome.satiscraft.core.NativeBridge
+import io.github.eltome.satiscraft.core.contract.ContentFiles
 import net.neoforged.fml.common.Mod
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.server.ServerStartingEvent
@@ -32,7 +33,8 @@ object Satiscraft {
     /** Loads factory-core, refuses to start on a contract mismatch, and creates the simulation. */
     private fun onServerStarting(@Suppress("UNUSED_PARAMETER") event: ServerStartingEvent) {
         NativeBridge.ensureCompatible()
-        core = FactoryCore.create(FactoryCore.noContent())
+        // The engine's TOML content is not loaded yet: the core runs on no files.
+        core = FactoryCore.create(ContentFiles())
         LOGGER.info("factory-core {} loaded (contract v{})", NativeBridge.coreVersion(), NativeBridge.contractVersion())
     }
 
