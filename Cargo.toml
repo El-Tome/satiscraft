@@ -21,6 +21,8 @@ serde = { version = "1.0.229", features = ["derive"] }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+# Long functions get split (threshold in clippy.toml, see "Code size" in CLAUDE.md).
+too_many_lines = "warn"
 
 # Panics must unwind so that the JNI layer can catch them: never switch to "abort".
 [profile.dev]

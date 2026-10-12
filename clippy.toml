@@ -1,0 +1,2 @@
+# Lines of code per function, comments and blank lines excluded (see "Code size" in CLAUDE.md).
+too-many-lines-threshold = 80

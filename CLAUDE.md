@@ -43,6 +43,7 @@ scripts/deploy-test.sh [jar...]      # the jars (from CI) -> test server, restar
 scripts/deploy-test.sh --check       # read-only: mods folder, server state, API key scope
 scripts/deploy-test.sh --power stop  # or start, restart, kill; waits for the resulting state
 scripts/deploy-test.sh --log 100     # end of the test server console
+scripts/check-file-size.sh           # fails if a source file passes 600 lines
 ```
 
 The Gradle build compiles `factory-jni` for the host and embeds it under
@@ -103,6 +104,13 @@ server; `-Prust_target=<triple>` overrides the target.
   the minor at each milestone (0.1.0 = Stone Age). CI fails otherwise; the `no-version-bump` label
   exempts PRs that ship nothing (CI, docs). Merging to main tags `vX.Y.Z` and publishes the
   jar, with release notes from PR titles.
+- Code size: one concept per file. A source file (`.rs`, `.kt`, `.kts`, `.java`, `.sh`,
+  `.py`) stays under 600 lines, tests included, ideally under 300; CI runs
+  `scripts/check-file-size.sh`. Split by concept, never into arbitrary halves: a submodule per
+  family of types or per system, and a Rust module whose tests outgrow it moves them to
+  `<module>/tests.rs`. Functions stay under 80 lines of code (clippy `too_many_lines`, same
+  target in Kotlin); an `allow` needs a justification comment. Generated sources and data
+  (TOML, JSON) are exempt, and content TOML is already split per system.
 - Toolchain and dependency versions are pinned; upgrading one is a separate task.
 
 ## Deployment
