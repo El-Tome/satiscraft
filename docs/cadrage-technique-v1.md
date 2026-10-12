@@ -27,7 +27,7 @@ Toute la logique vit dans un cœur Rust indépendant de Minecraft, pour pouvoir 
 
 ## Décisions validées
 
-Ces choix ont été tranchés les 10 et 11 octobre 2026 et servent de base à tout le reste.
+Ces choix ont été tranchés du 10 au 12 octobre 2026 et servent de base à tout le reste.
 
 | Sujet | Décision | Conséquence |
 | --- | --- | --- |
@@ -40,7 +40,10 @@ Ces choix ont été tranchés les 10 et 11 octobre 2026 et servent de base à to
 | Activité des usines | Politique choisie au HUB, « équipe connectée » par défaut | Aucun calcul quand l'équipe est absente |
 | Énergie | Système propre au mod | Compatibilité Forge Energy reportée |
 | Sauvegarde | Rust sérialise, Kotlin range dans le monde | Une sauvegarde du monde contient les usines |
+| Simulations | Une seule pour tout le serveur, toutes dimensions confondues | Équipes, HUB et quêtes traversent les dimensions |
+| Panne globale | Simulation gelée, jamais sauvegardée, reprise automatique désactivable | Au pire, retour à la dernière copie saine |
 | Contenu | Fichiers TOML dans le cœur | Tout ce qui peut être configurable l'est |
+| Rechargement | Les valeurs du contenu se rechargent par `/reload` | Un nouvel item ou bloc demande un redémarrage |
 | Cible de jeu | Serveur dédié multijoueur | Pas de solo en V1 |
 | Équipes | 1 équipe par joueur, HUB déplaçable, 4 rôles | Rôles extensibles par la config |
 | Tapis | Animés, en 0.3 avec l'électricité | Le plus gros chantier de rendu |
@@ -175,15 +178,21 @@ La couche JNI reste volontairement minuscule : peu de fonctions, des tableaux d'
 | Fonction | Entrée | Sortie |
 | --- | --- | --- |
 | `init` | contenu TOML, config | identifiant de simulation |
-| `load` / `save` | octets de sauvegarde | identifiant / octets |
+| `load` | contenu TOML, config, octets de sauvegarde | identifiant de simulation |
+| `save` | — | octets de sauvegarde |
 | `submit` | lot de commandes sérialisé | résultats sérialisés |
 | `tick` | — | lot d'effets sérialisé |
 | `query` | requête sérialisée | réponse sérialisée |
+| `reload` | contenu TOML, config | erreurs de validation |
 | `shutdown` | identifiant | — |
 
 - Un appel par lot, jamais par machine : `submit` puis `tick` une fois par tick serveur, ce qui limite le coût des traversées JNI.
 - Sérialisation binaire compacte (postcard) des types du contrat. Côté Kotlin, un test d'aller-retour garantit que les deux côtés lisent la même chose.
 - La JVM ne reçoit jamais de pointeur vers l'état Rust, seulement un identifiant numérique. Le cœur garde ses simulations dans un registre protégé par un verrou, ce qui évite le code `unsafe` qu'imposerait un pointeur brut.
+- Une seule simulation pour tout le serveur, toutes dimensions confondues : équipes, HUB et quêtes les traversent, et les îlots tournent déjà en parallèle. Le registre en accepte plusieurs, ce qui sert aux tests.
+- Les identifiants de simulation sont des entiers 64 bits croissants, jamais réutilisés : un identifiant périmé lève une exception au lieu de viser une autre simulation.
+- `load` reçoit le contenu avec la sauvegarde : une simulation n'existe jamais sans son contenu, et le cœur vérifie dès le chargement la sauvegarde contre lui.
+- Le contenu et la config traversent en un seul tableau d'octets postcard, chaque fichier avec son chemin : les erreurs citent `fichier:ligne`, et un nouveau fichier ne change pas la signature JNI.
 
 **Zéro `unsafe`**
 
@@ -197,6 +206,13 @@ La couche JNI reste volontairement minuscule : peu de fonctions, des tableaux d'
 - Chaque point d'entrée est enveloppé dans `catch_unwind`. Une panic devient une exception Kotlin `FactoryCoreException` avec le message et l'îlot concerné.
 - Profil de compilation avec `panic = "unwind"`, jamais `abort`.
 - Une panic pendant la simulation d'un îlot met **cet îlot** en état `Faulted`, journalise, et laisse tourner le reste. Un admin le relance par commande une fois le bug corrigé.
+- Une panic hors de tout îlot (commandes, fusion des effets, sauvegarde) peut laisser **toute la simulation** à moitié modifiée. Elle est alors gelée :
+  - elle n'est plus jamais sauvegardée, pour ne pas écraser la dernière bonne sauvegarde ;
+  - Kotlin cesse de la faire avancer et refuse les interactions avec les blocs du mod (poser, casser, ouvrir), avec un message au joueur, pour que le monde ne diverge pas du cœur ;
+  - les opérateurs sont prévenus dans le chat et la console.
+- Reprise automatique, activée par défaut (`sim.auto_recover`) : le cœur garde en mémoire une copie saine de son état (`sim.snapshot_interval_ticks`) et les lots de commandes reçus depuis. Sur une panne globale, il jette l'état gelé, recharge la copie et rejoue les lots, sans le dernier : la simulation étant déterministe, on retrouve l'état d'avant la panne. Les commandes du tick fautif reviennent refusées et Kotlin les annule.
+- Si le rejeu panique à son tour, le cœur repart de la copie seule. Prix accepté : le cœur revient en arrière, pas les inventaires des joueurs, donc un item sorti d'une machine dans l'intervalle peut être dupliqué, un item déposé perdu.
+- Au-delà de `sim.auto_recover_max_per_hour` reprises dans l'heure, ou si la reprise est désactivée, la simulation reste gelée jusqu'à `/satiscraft admin recover` ou au redémarrage, qui repart de la dernière sauvegarde sur disque.
 
 **Threads**
 
@@ -351,7 +367,7 @@ worldgen.toml       # placement des minerais, morceaux en surface
 vanilla.toml        # ce qui est bloqué, et jusqu'à quel âge
 
 # serveur
-config.toml         # threads, budget de tick, politiques d'activité
+config.toml         # threads, budget de tick, politiques d'activité, reprise après panne
 ```
 
 **Exemple**
@@ -381,6 +397,16 @@ outputs = [
 - Toute valeur d'équilibrage vit dans ces fichiers, jamais en dur dans le code.
 - Les durées sont en ticks et les énergies en milli-unités. Les chances sont écrites en décimal pour la lisibilité, puis converties en fractions entières au chargement.
 - Les textures et modèles restent dans le resource pack du mod, référencés par l'identifiant.
+
+**Rechargement à chaud**
+
+- Le `/reload` de Minecraft, réservé aux opérateurs, recharge aussi le contenu du moteur sans redémarrer le serveur, pour équilibrer sans couper la partie.
+- Tout ce qui est valeur se recharge : durées, quantités, débits, recettes des postes, chances, récompenses de quêtes, budget de tick.
+- Ce qui touche aux registres de Minecraft, figés au démarrage, demande un redémarrage : un item ou un bloc nouveau est refusé avec ce message. `sim.threads` aussi.
+- Tout ou rien : le cœur valide l'ensemble du nouveau contenu. À la moindre erreur, l'ancien reste en place et l'opérateur reçoit `fichier:ligne`.
+- Une machine en plein cycle le termine avec les anciennes valeurs ; le cycle suivant prend les nouvelles.
+- Le contenu appartient à la simulation, jamais à un état global, pour pouvoir être remplacé.
+- Pour l'instant, seul le contenu du moteur se recharge : `worldgen.toml` et `vanilla.toml` restent lus au démarrage.
 
 ## Dépôt, build, tests et déploiement
 
@@ -464,7 +490,7 @@ Tout le code est en anglais, chaque fonction a ses tests, et la version monte à
 **À trancher avant de coder**
 
 - [ ] Version exacte de Minecraft et de NeoForge : la plus récente stable au démarrage, à vérifier ensemble.
-- [ ] Un identifiant de simulation pour tout le serveur, ou un par dimension.
+- [x] Un identifiant de simulation pour tout le serveur, ou un par dimension : un seul pour tout le serveur (12 octobre 2026).
 - [ ] Comportement exact de la wilderness : pause des îlots et casse libre, ou reprise possible par une autre équipe.
 - [ ] Ce que font les fours et machines d'une équipe pendant que son HUB est démonté.
 - [ ] Ce qui compte comme « interagir » pour passer un îlot en mode exact (GUI ouverte, distance au joueur).
