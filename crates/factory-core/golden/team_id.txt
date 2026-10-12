@@ -1,0 +1,5 @@
+# team_id: postcard bytes in hex, a tab, then the Rust value.
+# Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
+00	TeamId(0)
+ac 02	TeamId(300)
+ff ff ff ff ff ff ff ff ff 01	TeamId(18446744073709551615)

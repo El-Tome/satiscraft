@@ -1,0 +1,5 @@
+# player_id: postcard bytes in hex, a tab, then the Rust value.
+# Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00	PlayerId([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+06 9a 79 f4 44 e9 40 26 bf 4b 8f 2c 41 37 00 0b	PlayerId([6, 154, 121, 244, 68, 233, 64, 38, 191, 75, 143, 44, 65, 55, 0, 11])
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff	PlayerId([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255])

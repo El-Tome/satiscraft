@@ -84,8 +84,13 @@ sourceSets.main {
 
 neoForge.ideSyncTask(bundleNatives)
 
+// The contract golden files that factory-core writes; ContractGoldenTest reads them back.
+val goldenDir: Directory = repoRoot.dir("crates/factory-core/golden")
+
 tasks.test {
     systemProperty("satiscraft.expectedCoreVersion", version.toString())
+    systemProperty("satiscraft.goldenDir", goldenDir.asFile.absolutePath)
+    inputs.dir(goldenDir).withPropertyName("goldenFiles")
     // Java 24+ warns on System.load without it (JEP 472).
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }

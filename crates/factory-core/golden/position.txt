@@ -1,0 +1,5 @@
+# position: postcard bytes in hex, a tab, then the Rust value.
+# Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
+13 6d 69 6e 65 63 72 61 66 74 3a 6f 76 65 72 77 6f 72 6c 64 00 00 00	Position { dimension: DimensionId("minecraft:overworld"), x: 0, y: 0, z: 0 }
+14 6d 69 6e 65 63 72 61 66 74 3a 74 68 65 5f 6e 65 74 68 65 72 01 80 01 02	Position { dimension: DimensionId("minecraft:the_nether"), x: -1, y: 64, z: 1 }
+13 6d 69 6e 65 63 72 61 66 74 3a 6f 76 65 72 77 6f 72 6c 64 ff ff ff ff 0f 7f fe ff ff ff 0f	Position { dimension: DimensionId("minecraft:overworld"), x: -2147483648, y: -64, z: 2147483647 }

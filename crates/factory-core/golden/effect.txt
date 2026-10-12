@@ -1,0 +1,5 @@
+# effect: postcard bytes in hex, a tab, then the Rust value.
+# Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
+00 00	Pong { nonce: 0 }
+00 ac 02	Pong { nonce: 300 }
+00 ff ff ff ff ff ff ff ff ff 01	Pong { nonce: 18446744073709551615 }

@@ -9,6 +9,7 @@
 
 #![allow(unsafe_code)]
 
+use factory_core::contract::reencode;
 use jni::EnvUnowned;
 use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::{jint, jlong};
@@ -143,4 +144,22 @@ pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_shutdo
     unowned_env
         .with_env(|_env| simulations::shutdown(id))
         .resolve::<ThrowFactoryCoreException>();
+}
+
+/// `NativeBridge.reencode(type: String, bytes: ByteArray): ByteArray`
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_reencode<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    type_name: JString<'caller>,
+    bytes: JByteArray<'caller>,
+) -> JByteArray<'caller> {
+    unowned_env
+        .with_env(|env| -> Result<_, BridgeError> {
+            let type_name = type_name.try_to_string(env)?;
+            let bytes = env.convert_byte_array(&bytes)?;
+            let again = reencode(&type_name, &bytes).map_err(BridgeError::codec("value"))?;
+            Ok(env.byte_array_from_slice(&again)?)
+        })
+        .resolve::<ThrowFactoryCoreException>()
 }

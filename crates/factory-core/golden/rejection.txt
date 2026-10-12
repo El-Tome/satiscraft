@@ -1,0 +1,6 @@
+# rejection: postcard bytes in hex, a tab, then the Rust value.
+# Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
+00	NotAllowed
+01	NotUnlocked
+02	NoSpace
+03	MissingItems

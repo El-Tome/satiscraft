@@ -1,0 +1,5 @@
+# machine_id: postcard bytes in hex, a tab, then the Rust value.
+# Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
+01	MachineId(1)
+80 80 01	MachineId(16384)
+ff ff ff ff ff ff ff ff ff 01	MachineId(18446744073709551615)
