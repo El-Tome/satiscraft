@@ -72,10 +72,12 @@ server; `-Prust_target=<triple>` overrides the target.
   are asked to the engine.
 - The engine's Kotlin registers blocks/items/menus and displays what the core returns. No
   Kotlin code stores simulated state or validates core gameplay: doing so is an architecture bug.
-- Contract: commands in, effects out (`submit`, `step`/`tick`, `query`, `save`, `load`).
-  Positions are `(dimension, x, y, z)` integers, items string ids (`satiscraft:bauxite`),
-  players UUIDs. No Minecraft type crosses. Adding a field is fine; removing or changing one
-  bumps `factory_core::CONTRACT_VERSION` and Kotlin `Contract.VERSION` together.
+- Contract (`factory_core::contract`): commands in, effects out (`submit`, `step`/`tick`,
+  `query`, `save`, `load`). Positions are a dimension id (`minecraft:overworld`) and integer
+  `x, y, z`, items string ids (`satiscraft:bauxite`), players UUIDs. No Minecraft type
+  crosses. The postcard encoding is positional: append enum variants, never reorder them.
+  Adding a field is fine; removing or changing one bumps `factory_core::CONTRACT_VERSION`
+  and Kotlin `Contract.VERSION` together.
 - JNI: one call per batch, never per machine; byte arrays (postcard) in and out; the JVM only
   holds numeric simulation ids. Called from the server thread only; the core's thread pool
   never calls back into the JVM. Panics always unwind (`panic = "unwind"`) and become
