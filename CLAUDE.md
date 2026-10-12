@@ -83,6 +83,9 @@ server; `-Prust_target=<triple>` overrides the target.
   holds numeric simulation ids. Called from the server thread only; the core's thread pool
   never calls back into the JVM. Panics always unwind (`panic = "unwind"`) and become
   `FactoryCoreException`; a panicking island goes `Faulted`, the rest keeps running.
+  One simulation per server, all dimensions. A panic outside any island freezes the whole
+  simulation: it is never saved again, and `sim.auto_recover` reloads it from an in-memory
+  snapshot. Content values reload with `/reload`; a new item or block needs a restart.
 - Simulation: exact integer fractions, no floats. Parallel and sequential runs must produce
   the same state. Durations in ticks, energy in milli-units.
 - Every balancing value lives in TOML, never in code: `crates/factory-core/content/` for the
