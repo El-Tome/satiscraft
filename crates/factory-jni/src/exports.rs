@@ -10,10 +10,12 @@
 #![allow(unsafe_code)]
 
 use jni::EnvUnowned;
-use jni::objects::{JClass, JString};
-use jni::sys::jint;
+use jni::objects::{JByteArray, JClass, JString};
+use jni::sys::{jint, jlong};
 
+use crate::error::BridgeError;
 use crate::policy::ThrowFactoryCoreException;
+use crate::simulations;
 
 /// `NativeBridge.coreVersion(): String`
 #[unsafe(no_mangle)]
@@ -39,4 +41,106 @@ pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_contra
             Ok(jint::from(factory_core::CONTRACT_VERSION))
         })
         .resolve::<ThrowFactoryCoreException>()
+}
+
+/// `NativeBridge.init(content: ByteArray): Long`
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_init<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    content: JByteArray<'caller>,
+) -> jlong {
+    unowned_env
+        .with_env(|env| -> Result<jlong, BridgeError> {
+            simulations::init(&env.convert_byte_array(&content)?)
+        })
+        .resolve::<ThrowFactoryCoreException>()
+}
+
+/// `NativeBridge.load(content: ByteArray, save: ByteArray): Long`
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_load<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    content: JByteArray<'caller>,
+    save: JByteArray<'caller>,
+) -> jlong {
+    unowned_env
+        .with_env(|env| -> Result<jlong, BridgeError> {
+            let content = env.convert_byte_array(&content)?;
+            simulations::load(&content, &env.convert_byte_array(&save)?)
+        })
+        .resolve::<ThrowFactoryCoreException>()
+}
+
+/// `NativeBridge.submit(id: Long, commands: ByteArray): ByteArray`
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_submit<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    id: jlong,
+    commands: JByteArray<'caller>,
+) -> JByteArray<'caller> {
+    unowned_env
+        .with_env(|env| -> Result<_, BridgeError> {
+            let results = simulations::submit(id, &env.convert_byte_array(&commands)?)?;
+            Ok(env.byte_array_from_slice(&results)?)
+        })
+        .resolve::<ThrowFactoryCoreException>()
+}
+
+/// `NativeBridge.tick(id: Long): ByteArray`
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_tick<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    id: jlong,
+) -> JByteArray<'caller> {
+    unowned_env
+        .with_env(|env| -> Result<_, BridgeError> {
+            Ok(env.byte_array_from_slice(&simulations::tick(id)?)?)
+        })
+        .resolve::<ThrowFactoryCoreException>()
+}
+
+/// `NativeBridge.query(id: Long, query: ByteArray): ByteArray`
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_query<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    id: jlong,
+    query: JByteArray<'caller>,
+) -> JByteArray<'caller> {
+    unowned_env
+        .with_env(|env| -> Result<_, BridgeError> {
+            let answer = simulations::query(id, &env.convert_byte_array(&query)?)?;
+            Ok(env.byte_array_from_slice(&answer)?)
+        })
+        .resolve::<ThrowFactoryCoreException>()
+}
+
+/// `NativeBridge.save(id: Long): ByteArray`
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_save<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    id: jlong,
+) -> JByteArray<'caller> {
+    unowned_env
+        .with_env(|env| -> Result<_, BridgeError> {
+            Ok(env.byte_array_from_slice(&simulations::save(id)?)?)
+        })
+        .resolve::<ThrowFactoryCoreException>()
+}
+
+/// `NativeBridge.shutdown(id: Long)`
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_github_eltome_satiscraft_core_NativeBridge_shutdown<'caller>(
+    mut unowned_env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    id: jlong,
+) {
+    unowned_env
+        .with_env(|_env| simulations::shutdown(id))
+        .resolve::<ThrowFactoryCoreException>();
 }

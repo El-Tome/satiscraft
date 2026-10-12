@@ -93,7 +93,8 @@ pub trait Simulation {
     /// Lecture seule, pour les GUI et le rendu.
     fn query(&self, q: &Query) -> QueryResult;
     fn save(&self) -> Vec<u8>;
-    fn load(bytes: &[u8]) -> Result<Self, LoadError> where Self: Sized;
+    /// Recharge une sauvegarde avec le contenu sur lequel elle tourne.
+    fn load(content: ContentFiles, bytes: &[u8]) -> Result<Self, LoadError> where Self: Sized;
 }
 ```
 

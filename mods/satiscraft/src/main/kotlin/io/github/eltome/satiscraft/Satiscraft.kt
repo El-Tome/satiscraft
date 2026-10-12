@@ -1,9 +1,11 @@
 package io.github.eltome.satiscraft
 
+import io.github.eltome.satiscraft.core.FactoryCore
 import io.github.eltome.satiscraft.core.NativeBridge
 import net.neoforged.fml.common.Mod
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.server.ServerStartingEvent
+import net.neoforged.neoforge.event.server.ServerStoppedEvent
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -19,13 +21,24 @@ object Satiscraft {
 
     val LOGGER: Logger = LoggerFactory.getLogger(ID)
 
+    /** The simulation of the running server, for all its dimensions; null while none runs. */
+    private var core: FactoryCore? = null
+
     init {
         NeoForge.EVENT_BUS.addListener(ServerStartingEvent::class.java, ::onServerStarting)
+        NeoForge.EVENT_BUS.addListener(ServerStoppedEvent::class.java, ::onServerStopped)
     }
 
-    /** Loads factory-core on the server and refuses to start on a contract mismatch. */
+    /** Loads factory-core, refuses to start on a contract mismatch, and creates the simulation. */
     private fun onServerStarting(@Suppress("UNUSED_PARAMETER") event: ServerStartingEvent) {
         NativeBridge.ensureCompatible()
+        core = FactoryCore.create(FactoryCore.noContent())
         LOGGER.info("factory-core {} loaded (contract v{})", NativeBridge.coreVersion(), NativeBridge.contractVersion())
+    }
+
+    /** Frees the simulation once the server has stopped, after its last save. */
+    private fun onServerStopped(@Suppress("UNUSED_PARAMETER") event: ServerStoppedEvent) {
+        core?.close()
+        core = null
     }
 }

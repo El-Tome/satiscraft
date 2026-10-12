@@ -6,5 +6,8 @@
 
 #![deny(unsafe_code)]
 
+mod error;
 mod exports;
 mod policy;
+mod registry;
+mod simulations;

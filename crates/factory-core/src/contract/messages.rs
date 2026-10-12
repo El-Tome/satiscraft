@@ -12,6 +12,9 @@ pub enum Command {
     /// Diagnostic round trip: always accepted, answered by [`Effect::Pong`] with the same
     /// nonce on the next step. Lets a platform check the command → effect path end to end.
     Ping { nonce: u64 },
+    /// Diagnostic fault injection: always accepted, then the next step panics outside any
+    /// island. Lets a platform check its handling of a faulted simulation end to end.
+    PanicOnNextStep,
 }
 
 /// The core's answer to one command, at the same index as the command in the batch.
@@ -67,7 +70,7 @@ mod tests {
 
     #[test]
     fn every_variant_round_trips() {
-        let commands = vec![Command::Ping { nonce: u64::MAX }];
+        let commands = vec![Command::Ping { nonce: u64::MAX }, Command::PanicOnNextStep];
         let results = vec![
             CommandResult::Accepted,
             CommandResult::Rejected(Rejection::NotAllowed),
@@ -102,6 +105,7 @@ mod tests {
     fn variants_are_encoded_by_their_position() {
         // Kotlin mirrors these indices: append new variants, never reorder them.
         assert_eq!(encode(&Command::Ping { nonce: 1 }).unwrap(), [0, 1]);
+        assert_eq!(encode(&Command::PanicOnNextStep).unwrap(), [1]);
         assert_eq!(encode(&CommandResult::Accepted).unwrap(), [0]);
         assert_eq!(
             encode(&CommandResult::Rejected(Rejection::MissingItems)).unwrap(),

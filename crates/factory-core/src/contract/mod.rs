@@ -7,15 +7,18 @@
 #[cfg(test)]
 pub(crate) mod arbitrary;
 mod codec;
+mod content;
 mod ids;
 mod messages;
 
 pub use codec::{CodecError, decode, encode};
+pub use content::{ContentFile, ContentFiles};
 pub use ids::{DimensionId, IdError, ItemId, MachineId, PlayerId, Position, TeamId};
 pub use messages::{Command, CommandResult, Effect, Query, QueryResult, Rejection};
 
 /// Version of the contract types: [`Command`], [`CommandResult`], [`Rejection`],
-/// [`Effect`], [`Query`], [`QueryResult`] and the ids and positions they carry.
+/// [`Effect`], [`Query`], [`QueryResult`], the ids and positions they carry, and the
+/// [`ContentFiles`] a simulation is built from.
 ///
 /// The encoding is positional (postcard): fields in declaration order, enum variants by
 /// index. Kotlin mirrors it and ships in the same jar, so adding a field or appending a

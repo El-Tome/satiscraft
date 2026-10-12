@@ -5,7 +5,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{
-    CodecError, Command, CommandResult, Effect, Query, QueryResult, decode, encode,
+    CodecError, Command, CommandResult, ContentFiles, Effect, Query, QueryResult, decode, encode,
 };
 
 /// What a platform sees of the core: it submits commands, steps once per tick, applies the
@@ -25,8 +25,9 @@ pub trait Simulation {
     /// The whole simulated state, as bytes that [`Simulation::load`] reads back.
     fn save(&self) -> Vec<u8>;
 
-    /// Rebuilds a simulation from the output of [`Simulation::save`].
-    fn load(bytes: &[u8]) -> Result<Self, LoadError>
+    /// Rebuilds a simulation from the output of [`Simulation::save`], with the content it
+    /// runs on: the save holds the state, never the content.
+    fn load(content: ContentFiles, bytes: &[u8]) -> Result<Self, LoadError>
     where
         Self: Sized;
 }
@@ -56,9 +57,12 @@ impl std::error::Error for LoadError {
 
 /// The factory simulation. For now it only keeps time and answers pings; each gameplay
 /// system adds its state here.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Core {
     state: State,
+    /// What the simulation runs on. It belongs to the simulation, never to global state, so
+    /// that a reload can swap it. Carried as is until the content loader reads it.
+    content: ContentFiles,
 }
 
 /// Everything [`Simulation::save`] writes. The versioned save format (`FCTR` header, migrations)
@@ -69,12 +73,22 @@ struct State {
     tick: u64,
     /// Nonces of the pings accepted since the last step, in order.
     pending_pongs: Vec<u64>,
+    /// Set by [`Command::PanicOnNextStep`].
+    panic_on_next_step: bool,
 }
 
 impl Core {
-    /// An empty world at tick 0.
-    pub fn new() -> Self {
-        Self::default()
+    /// An empty world at tick 0, running on `content`.
+    pub fn new(content: ContentFiles) -> Self {
+        Self {
+            state: State::default(),
+            content,
+        }
+    }
+
+    /// The files this simulation runs on.
+    pub fn content(&self) -> &ContentFiles {
+        &self.content
     }
 }
 
@@ -87,12 +101,22 @@ impl Simulation for Core {
                     self.state.pending_pongs.push(*nonce);
                     CommandResult::Accepted
                 }
+                Command::PanicOnNextStep => {
+                    self.state.panic_on_next_step = true;
+                    CommandResult::Accepted
+                }
             })
             .collect()
     }
 
     fn step(&mut self) -> Vec<Effect> {
         self.state.tick += 1;
+        if self.state.panic_on_next_step {
+            panic!(
+                "panic requested by Command::PanicOnNextStep, at tick {}",
+                self.state.tick
+            );
+        }
         self.state
             .pending_pongs
             .drain(..)
@@ -111,9 +135,9 @@ impl Simulation for Core {
         encode(&self.state).expect("the core state is always encodable")
     }
 
-    fn load(bytes: &[u8]) -> Result<Self, LoadError> {
+    fn load(content: ContentFiles, bytes: &[u8]) -> Result<Self, LoadError> {
         let state = decode(bytes).map_err(LoadError::Malformed)?;
-        Ok(Self { state })
+        Ok(Self { state, content })
     }
 }
 
@@ -124,6 +148,12 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+    use crate::contract::ContentFile;
+
+    /// A simulation on empty content, as every test starts.
+    fn new_core() -> Core {
+        Core::new(ContentFiles::default())
+    }
 
     fn pings(nonces: &[u64]) -> Vec<Command> {
         nonces
@@ -138,14 +168,14 @@ mod tests {
 
     #[test]
     fn new_core_starts_at_tick_zero_with_nothing_pending() {
-        let mut core = Core::new();
+        let mut core = new_core();
         assert_eq!(core.query(&Query::Tick), QueryResult::Tick(0));
         assert_eq!(core.step(), []);
     }
 
     #[test]
     fn submit_answers_each_command_in_order() {
-        let mut core = Core::new();
+        let mut core = new_core();
         assert_eq!(core.submit(&[]), []);
         assert_eq!(
             core.submit(&pings(&[1, 2, 3])),
@@ -155,7 +185,7 @@ mod tests {
 
     #[test]
     fn ping_is_answered_by_the_next_step_only() {
-        let mut core = Core::new();
+        let mut core = new_core();
         core.submit(&pings(&[5, 6]));
         core.submit(&pings(&[7]));
         assert_eq!(core.step(), pongs(&[5, 6, 7]));
@@ -164,7 +194,7 @@ mod tests {
 
     #[test]
     fn step_advances_the_tick() {
-        let mut core = Core::new();
+        let mut core = new_core();
         for _ in 0..3 {
             core.step();
         }
@@ -173,25 +203,53 @@ mod tests {
 
     #[test]
     fn save_then_load_restores_the_state() {
-        let mut core = Core::new();
+        let mut core = new_core();
         core.step();
         core.submit(&pings(&[9]));
-        let mut loaded = Core::load(&core.save()).unwrap();
+        let mut loaded = Core::load(ContentFiles::default(), &core.save()).unwrap();
         assert_eq!(loaded, core);
         assert_eq!(loaded.step(), pongs(&[9]));
         assert_eq!(loaded.query(&Query::Tick), QueryResult::Tick(2));
     }
 
     #[test]
+    fn load_runs_on_the_given_content_not_the_saved_one() {
+        let file = |text: &str| ContentFiles {
+            files: vec![ContentFile {
+                path: "config.toml".into(),
+                text: text.into(),
+            }],
+        };
+        let mut core = Core::new(file("old"));
+        assert_eq!(core.content(), &file("old"));
+        core.step();
+        let loaded = Core::load(file("new"), &core.save()).unwrap();
+        assert_eq!(loaded.content(), &file("new"));
+        assert_eq!(loaded.query(&Query::Tick), QueryResult::Tick(1));
+    }
+
+    #[test]
+    #[should_panic(expected = "panic requested by Command::PanicOnNextStep, at tick 1")]
+    fn panic_on_next_step_is_accepted_then_the_next_step_panics() {
+        let mut core = new_core();
+        assert_eq!(
+            core.submit(&[Command::PanicOnNextStep]),
+            [CommandResult::Accepted]
+        );
+        let mut loaded = Core::load(ContentFiles::default(), &core.save()).unwrap();
+        loaded.step();
+    }
+
+    #[test]
     fn load_rejects_malformed_bytes() {
         assert!(matches!(
-            Core::load(&[0xff]),
+            Core::load(ContentFiles::default(), &[0xff]),
             Err(LoadError::Malformed(CodecError::Decode(_)))
         ));
-        let mut bytes = Core::new().save();
+        let mut bytes = new_core().save();
         bytes.push(0);
         assert_eq!(
-            Core::load(&bytes),
+            Core::load(ContentFiles::default(), &bytes),
             Err(LoadError::Malformed(CodecError::TrailingBytes(1)))
         );
     }
@@ -232,8 +290,8 @@ mod tests {
         fn save_and_load_are_invisible_to_the_platform(
             actions in prop::collection::vec(action(), 0..32),
         ) {
-            let mut reference = Core::new();
-            let mut reloaded = Core::new();
+            let mut reference = new_core();
+            let mut reloaded = new_core();
             let (mut sent, mut received) = (Vec::new(), Vec::new());
             for action in actions {
                 match action {
@@ -247,7 +305,7 @@ mod tests {
                         prop_assert_eq!(&effects, &reloaded.step());
                         received.extend(effects.into_iter().map(|Effect::Pong { nonce }| nonce));
                     }
-                    Action::SaveAndLoad => reloaded = Core::load(&reloaded.save()).unwrap(),
+                    Action::SaveAndLoad => reloaded = Core::load(ContentFiles::default(), &reloaded.save()).unwrap(),
                 }
             }
             prop_assert_eq!(&reference, &reloaded);
