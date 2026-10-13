@@ -15,7 +15,13 @@ object ContractSamples {
         Command.PanicOnNextStep,
     )
 
-    val rejections = listOf(Rejection.NotAllowed, Rejection.NotUnlocked, Rejection.NoSpace, Rejection.MissingItems)
+    val rejections = listOf(
+        Rejection.NotAllowed,
+        Rejection.NotUnlocked,
+        Rejection.NoSpace,
+        Rejection.MissingItems,
+        Rejection.Faulted,
+    )
 
     val commandResults = listOf(CommandResult.Accepted) + rejections.map { CommandResult.Rejected(it) }
 

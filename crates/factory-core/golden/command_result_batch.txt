@@ -1,4 +1,4 @@
 # command_result_batch: postcard bytes in hex, a tab, then the Rust value.
 # Generated: UPDATE_GOLDEN=1 cargo test -p factory-core golden
 00	[]
-05 00 01 00 01 01 01 02 01 03	[Accepted, Rejected(NotAllowed), Rejected(NotUnlocked), Rejected(NoSpace), Rejected(MissingItems)]
+06 00 01 00 01 01 01 02 01 03 01 04	[Accepted, Rejected(NotAllowed), Rejected(NotUnlocked), Rejected(NoSpace), Rejected(MissingItems), Rejected(Faulted)]

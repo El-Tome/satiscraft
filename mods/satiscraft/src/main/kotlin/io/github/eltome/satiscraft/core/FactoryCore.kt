@@ -15,15 +15,13 @@ import io.github.eltome.satiscraft.core.contract.list
  * panic in [submit] or [tick] the simulation is faulted: every later call throws, [save]
  * included, so a half-modified state is never written. Only [close] still works.
  */
-class FactoryCore private constructor(val id: Long) : AutoCloseable {
+class FactoryCore private constructor(val id: Long) : Simulation {
     private var closed = false
 
-    /** Applies a batch of commands and returns one result per command, in order. */
-    fun submit(commands: List<Command>): List<CommandResult> =
+    override fun submit(commands: List<Command>): List<CommandResult> =
         resultBatch.decode(NativeBridge.submit(id, commandBatch.encode(commands)))
 
-    /** Steps the simulation once and returns its effects. */
-    fun tick(): List<Effect> = effectBatch.decode(NativeBridge.tick(id))
+    override fun tick(): List<Effect> = effectBatch.decode(NativeBridge.tick(id))
 
     /** Answers a read-only query. */
     fun query(query: Query): QueryResult = QueryResult.decode(NativeBridge.query(id, Query.encode(query)))

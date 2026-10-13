@@ -37,6 +37,9 @@ pub enum Rejection {
     NoSpace,
     /// The source does not hold the items.
     MissingItems,
+    /// The simulation faulted while handling the batch, so the command was dropped. The
+    /// platform also answers it to every command of a batch whose core call failed.
+    Faulted,
 }
 
 /// A change the platform must apply to the world or show to players.
@@ -77,6 +80,7 @@ mod tests {
             CommandResult::Rejected(Rejection::NotUnlocked),
             CommandResult::Rejected(Rejection::NoSpace),
             CommandResult::Rejected(Rejection::MissingItems),
+            CommandResult::Rejected(Rejection::Faulted),
         ];
         let effects = vec![Effect::Pong { nonce: 0 }];
         assert_eq!(
@@ -125,7 +129,7 @@ mod tests {
     #[test]
     fn unknown_variant_fails_to_decode() {
         assert!(decode::<Command>(&[9, 0]).is_err());
-        assert!(decode::<Rejection>(&[4]).is_err());
+        assert!(decode::<Rejection>(&[5]).is_err());
     }
 
     proptest! {

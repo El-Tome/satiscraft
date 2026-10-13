@@ -26,6 +26,7 @@ pub(super) fn rejections() -> Vec<Rejection> {
         Rejection::NotUnlocked,
         Rejection::NoSpace,
         Rejection::MissingItems,
+        Rejection::Faulted,
     ]
 }
 

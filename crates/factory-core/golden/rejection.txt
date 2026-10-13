@@ -4,3 +4,4 @@
 01	NotUnlocked
 02	NoSpace
 03	MissingItems
+04	Faulted
