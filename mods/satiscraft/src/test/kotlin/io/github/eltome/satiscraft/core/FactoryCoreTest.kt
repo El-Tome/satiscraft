@@ -2,7 +2,6 @@ package io.github.eltome.satiscraft.core
 
 import io.github.eltome.satiscraft.core.contract.Command
 import io.github.eltome.satiscraft.core.contract.CommandResult
-import io.github.eltome.satiscraft.core.contract.ContentFile
 import io.github.eltome.satiscraft.core.contract.ContentFiles
 import io.github.eltome.satiscraft.core.contract.Effect
 import io.github.eltome.satiscraft.core.contract.Query
@@ -18,7 +17,7 @@ class FactoryCoreTest {
     private val ping = listOf(Command.Ping(42u))
     private val pong = listOf(Effect.Pong(42u))
 
-    private fun create() = FactoryCore.create(ContentFiles())
+    private fun create() = FactoryCore.create(shippedContent)
 
     @Test
     fun `a command comes back as an effect on the next tick`() {
@@ -37,8 +36,7 @@ class FactoryCoreTest {
             core.submit(ping)
             core.save()
         }
-        val content = ContentFiles(listOf(ContentFile("config.toml", "threads = 2")))
-        FactoryCore.load(content, saved).use { core ->
+        FactoryCore.load(shippedContentWith("config.toml" to "[sim]\nthreads = 2\n"), saved).use { core ->
             assertEquals(QueryResult.Tick(1u), core.query(Query.Tick))
             assertEquals(pong, core.tick())
         }
@@ -66,11 +64,22 @@ class FactoryCoreTest {
     @Test
     fun `malformed bytes raise without faulting`() {
         assertThrows<FactoryCoreException> { NativeBridge.init(ByteArray(0)) }
-        assertThrows<FactoryCoreException> { FactoryCore.load(ContentFiles(), byteArrayOf(-1)) }
+        assertThrows<FactoryCoreException> { FactoryCore.load(shippedContent, byteArrayOf(-1)) }
         create().use { core ->
             val error = assertThrows<FactoryCoreException> { NativeBridge.submit(core.id, byteArrayOf(1)) }
             assertTrue("commands" in error.message!!, error.message)
             assertEquals(emptyList<Effect>(), core.tick())
+        }
+    }
+
+    @Test
+    fun `invalid content raises with every problem at its file and line`() {
+        val noFiles = assertThrows<FactoryCoreException> { FactoryCore.create(ContentFiles()) }
+        assertTrue("items.toml: missing content file" in noFiles.message!!, noFiles.message)
+        val typo = shippedContentWith("config.toml" to "[sim]\nthread = 4\n")
+        for (call in listOf({ FactoryCore.create(typo) }, { FactoryCore.load(typo, create().use { it.save() }) })) {
+            val error = assertThrows<FactoryCoreException> { call() }
+            assertTrue("config/satiscraft/config.toml:2: unknown field `thread`" in error.message!!, error.message)
         }
     }
 

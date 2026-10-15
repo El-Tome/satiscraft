@@ -1,0 +1,8 @@
+# The modpack's overrides of the engine's config.toml (crates/factory-core/content/config.toml).
+#
+# Only the keys set here change, under their table, for instance:
+#
+# [sim]
+# threads = 4
+#
+# The modpack keeps the engine's defaults for now.

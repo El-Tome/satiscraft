@@ -1,0 +1,19 @@
+# Server settings of the engine.
+#
+# A server changes any of them from config/satiscraft/config.toml, which only needs the keys
+# it changes, under their table: for instance `[sim]` then `threads = 4`.
+
+[sim]
+# Threads of the simulation pool; 0 for one per CPU core. Needs a restart.
+threads = 0
+# Time the core may spend on one server tick, in milliseconds (a tick lasts 50 ms). Past it,
+# the least urgent aggregated islands wait for the next tick.
+tick_budget_ms = 20
+
+[activity]
+# When a team's factories run: "always", "team_online" (while a member is connected, with no
+# catching up afterwards) or "paused".
+# The policy a new team starts with, one of `allowed`.
+default = "team_online"
+# The policies a team may choose at its HUB.
+allowed = ["always", "team_online", "paused"]

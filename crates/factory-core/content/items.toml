@@ -1,0 +1,10 @@
+# Items, resources, tools and ore blocks the engine declares, one [[items]] table each.
+#
+# Ids live in the `satiscraft` namespace and are frozen once released: deprecate, never
+# rename or delete. Minecraft registers the items from these defaults, so a server override
+# (config/satiscraft/items.toml) can change an item's values but cannot add an item.
+#
+# The first items arrive with the issues that use them, for instance:
+#
+# [[items]]
+# id = "satiscraft:flint_blade"

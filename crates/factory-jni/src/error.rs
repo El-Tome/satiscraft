@@ -2,8 +2,8 @@
 
 use std::fmt;
 
-use factory_core::LoadError;
 use factory_core::contract::CodecError;
+use factory_core::{ContentErrors, LoadError};
 
 use crate::registry::RegistryError;
 
@@ -19,6 +19,8 @@ pub(crate) enum BridgeError {
         what: &'static str,
         source: CodecError,
     },
+    /// The content files are invalid: the core refuses to run on them.
+    Content(ContentErrors),
     /// The save does not load.
     Load(LoadError),
 }
@@ -36,6 +38,7 @@ impl fmt::Display for BridgeError {
             Self::Jni(err) => write!(f, "JNI call failed: {err}"),
             Self::Registry(err) => err.fmt(f),
             Self::Codec { what, source } => write!(f, "{what}: {source}"),
+            Self::Content(err) => err.fmt(f),
             Self::Load(err) => err.fmt(f),
         }
     }
@@ -47,6 +50,7 @@ impl std::error::Error for BridgeError {
             Self::Jni(err) => Some(err),
             Self::Registry(err) => Some(err),
             Self::Codec { source, .. } => Some(source),
+            Self::Content(err) => Some(err),
             Self::Load(err) => Some(err),
         }
     }
@@ -64,6 +68,12 @@ impl From<RegistryError> for BridgeError {
     }
 }
 
+impl From<ContentErrors> for BridgeError {
+    fn from(err: ContentErrors) -> Self {
+        Self::Content(err)
+    }
+}
+
 impl From<LoadError> for BridgeError {
     fn from(err: LoadError) -> Self {
         Self::Load(err)
@@ -74,11 +84,26 @@ impl From<LoadError> for BridgeError {
 mod tests {
     use std::error::Error;
 
+    use factory_core::Content;
+    use factory_core::contract::{ContentFile, ContentFiles};
+
     use super::*;
+
+    /// The errors of content made of one unknown file.
+    fn content_errors() -> ContentErrors {
+        let files = ContentFiles {
+            files: vec![ContentFile {
+                path: "quests.toml".into(),
+                text: String::new(),
+            }],
+        };
+        Content::load(&files).expect_err("an unknown file")
+    }
 
     /// Each kind of error, with the message the JVM gets after the policy prefix.
     fn cases() -> Vec<(BridgeError, &'static str)> {
         vec![
+            (content_errors().into(), "invalid content ("),
             (
                 jni::errors::Error::NullPtr("commands").into(),
                 "JNI call failed: ",

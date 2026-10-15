@@ -1,3 +1,4 @@
+import io.github.eltome.satiscraft.gradle.EmbedContent
 import io.github.eltome.satiscraft.gradle.hostRustTarget
 import io.github.eltome.satiscraft.gradle.nativeLibraryFileName
 import io.github.eltome.satiscraft.gradle.nativePlatform
@@ -83,6 +84,20 @@ sourceSets.main {
 }
 
 neoForge.ideSyncTask(bundleNatives)
+
+// The engine's default content: crates/factory-core/content/*.toml, embedded under content/
+// with the index that EngineContent reads. Servers override it from config/satiscraft/.
+val embedContent = tasks.register<EmbedContent>("embedContent") {
+    description = "Stages the engine's content files and their index as jar resources."
+    files.from(repoRoot.dir("crates/factory-core/content").asFileTree.matching { include("*.toml") })
+    outputDirectory = layout.buildDirectory.dir("generated/content")
+}
+
+sourceSets.main {
+    resources.srcDir(embedContent)
+}
+
+neoForge.ideSyncTask(embedContent)
 
 // The contract golden files that factory-core writes; ContractGoldenTest reads them back.
 val goldenDir: Directory = repoRoot.dir("crates/factory-core/golden")

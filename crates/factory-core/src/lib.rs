@@ -3,13 +3,15 @@
 //! This crate owns the whole simulated state. It must never depend on Minecraft,
 //! JNI or networking crates, and it must keep compiling for `wasm32-unknown-unknown`.
 //! Platforms talk to it only through commands in and effects out: see [`contract`] and
-//! [`Simulation`].
+//! [`Simulation`]. What a simulation runs on is [`content`], read from TOML files.
 
 #![forbid(unsafe_code)]
 
+pub mod content;
 pub mod contract;
 mod simulation;
 
+pub use content::{Content, ContentErrors};
 pub use contract::CONTRACT_VERSION;
 pub use simulation::{Core, LoadError, Simulation};
 
