@@ -43,6 +43,7 @@ cargo build -p factory-core --target wasm32-unknown-unknown   # portability guar
 scripts/deploy-test.sh [jar...]      # the jars (from CI) -> test server, restart, check the core loaded
 scripts/deploy-test.sh --check       # read-only: mods folder, server state, API key scope
 scripts/deploy-test.sh --power stop  # or start, restart, kill; waits for the resulting state
+scripts/deploy-test.sh --config f.toml   # content override -> config/satiscraft/ (--config-rm f.toml)
 scripts/deploy-test.sh --log 100     # end of the test server console
 scripts/check-file-size.sh           # fails if a source file passes 600 lines
 ```

@@ -8,7 +8,11 @@
 #       Without arguments: the latest build of each mod (mods/*/build/libs) and the
 #       dependencies staged by `./gradlew :modpack:serverMods` (modpack/build/serverMods).
 #       The engine jar (satiscraft-<version>.jar) is required; Satiscraft jars share its version.
-#   scripts/deploy-test.sh --check             changes nothing: mods folder, server state, key scope
+#   scripts/deploy-test.sh --check             changes nothing: mods and config folders, server state,
+#                                              key scope
+#   scripts/deploy-test.sh --config FILE...    uploads content overrides to config/satiscraft/ (same
+#                                              name); they apply at the next restart
+#   scripts/deploy-test.sh --config-rm NAME... removes overrides from config/satiscraft/
 #   scripts/deploy-test.sh --power SIGNAL      start, stop, restart or kill, then waits for the result
 #   scripts/deploy-test.sh --log [LINES]       end of the server console (logs/latest.log)
 #
@@ -84,6 +88,21 @@ list_mods() {
   printf '%s\n' "$listing" | sed -e '/^sftp>/d' -e 's|.*/||' -e '/^$/d'
 }
 
+# Content and config overrides of the three mods, as a server keeps them.
+config_dir="/config/satiscraft"
+
+# Names of the overrides on the server; nothing when the folder does not exist yet.
+list_config() {
+  local listing
+  listing="$(printf -- '-ls -1 %s\n' "$config_dir" | run_sftp 2>/dev/null)" || return 0
+  printf '%s\n' "$listing" | sed -e '/^sftp>/d' -e 's|.*/||' -e '/^$/d'
+}
+
+# Fails unless NAME is a plain TOML file name: it lands in an SFTP batch.
+check_config_name() {
+  [[ "$1" =~ ^[A-Za-z0-9._-]+\.toml$ ]] || fail "$1: an override is a .toml file name, without spaces"
+}
+
 # Prints the last LINES lines of the server console.
 print_log() {
   local tmp
@@ -120,17 +139,32 @@ server_api() {
   client_api "$method" "/servers/$PTERODACTYL_SERVER_ID/$endpoint" "$@"
 }
 
-# offline, starting, running or stopping.
+# The server's state and resources, as JSON.
+server_resources() {
+  server_api GET resources || fail "the client API refused the request"
+}
+
+# offline, starting, running or stopping, from server_resources.
+state_of() {
+  printf '%s' "$1" | grep -o '"current_state":"[a-z]*"' | cut -d'"' -f4
+}
+
+# Seconds the server has been up, from server_resources; empty when not reported.
+uptime_of() {
+  local ms
+  ms="$(printf '%s' "$1" | grep -o '"uptime":[0-9]*' | cut -d: -f2)"
+  if [[ -n "$ms" ]]; then echo $((ms / 1000)); fi
+}
+
 server_state() {
-  local resources
-  resources="$(server_api GET resources)" || fail "the client API refused the request"
-  printf '%s' "$resources" | grep -o '"current_state":"[a-z]*"' | cut -d'"' -f4
+  state_of "$(server_resources)"
 }
 
 # Sends a power signal and waits until the server reaches the state it leads to.
 # Pterodactyl reports "running" once the server has finished starting.
 power() {
   local signal="$1" target="running" state="" last="" left=true started=$SECONDS offline_since=""
+  local resources uptime
   case "$signal" in
     start | restart) ;;
     stop | kill) target="offline" ;;
@@ -140,12 +174,17 @@ power() {
   if [[ "$signal" == "restart" ]]; then left=false; fi
   server_api POST power -d "{\"signal\":\"$signal\"}" >/dev/null
   while ((SECONDS - started < 300)); do
-    state="$(server_state)"
+    resources="$(server_resources)"
+    state="$(state_of "$resources")"
+    uptime="$(uptime_of "$resources")"
     if [[ "$state" != "$last" ]]; then
       echo "    $state"
       last="$state"
     fi
     if [[ "$state" != "running" ]]; then left=true; fi
+    # A quick restart can slip between two polls: a server up for less time than we have
+    # been waiting has restarted.
+    if [[ -n "$uptime" ]] && ((uptime < SECONDS - started)); then left=true; fi
     if $left && [[ "$state" == "$target" ]]; then return 0; fi
     # A server that should start but stays offline has crashed while starting.
     if [[ "$target" == "running" && "$state" == "offline" ]]; then
@@ -165,6 +204,8 @@ case "${1:-}" in
   --check)
     echo "==> SFTP: $mods_dir on $sftp_host:$sftp_port"
     list_mods | sed 's/^/    /'
+    echo "==> SFTP: $config_dir"
+    list_config | sed 's/^/    /'
     if [[ -z "${PTERODACTYL_API_KEY:-}" ]]; then
       echo "PTERODACTYL_API_KEY is not set: restarts will be manual."
       exit 0
@@ -189,6 +230,34 @@ case "${1:-}" in
     require_api_key
     echo "==> Power: ${2:-}"
     power "${2:-}"
+    exit 0
+    ;;
+  --config)
+    shift
+    (($# > 0)) || fail "--config takes the override files to upload"
+    batch="-mkdir /config"$'\n'"-mkdir $config_dir"$'\n'
+    for file in "$@"; do
+      [[ -f "$file" ]] || fail "$file: no such file"
+      [[ "$file" != *[\"\\]* ]] || fail "$file: path must not contain quotes or backslashes"
+      check_config_name "$(basename "$file")"
+      echo "    uploading $config_dir/$(basename "$file")"
+      batch+="put \"$file\" $config_dir/$(basename "$file")"$'\n'
+    done
+    printf '%s' "$batch" | run_sftp >/dev/null || fail "SFTP upload failed, check $config_dir by hand"
+    echo "Overrides uploaded: they apply at the next restart (--power restart)."
+    exit 0
+    ;;
+  --config-rm)
+    shift
+    (($# > 0)) || fail "--config-rm takes the override names to remove"
+    batch=""
+    for name in "$@"; do
+      check_config_name "$name"
+      echo "    removing $config_dir/$name"
+      batch+="rm $config_dir/$name"$'\n'
+    done
+    printf '%s' "$batch" | run_sftp >/dev/null || fail "SFTP removal failed, check $config_dir by hand"
+    echo "Overrides removed: the defaults apply at the next restart (--power restart)."
     exit 0
     ;;
   --log)
