@@ -4,6 +4,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::content::{Content, ContentErrors};
 use crate::contract::{
     CodecError, Command, CommandResult, ContentFiles, Effect, Query, QueryResult, decode, encode,
 };
@@ -25,24 +26,27 @@ pub trait Simulation {
     /// The whole simulated state, as bytes that [`Simulation::load`] reads back.
     fn save(&self) -> Vec<u8>;
 
-    /// Rebuilds a simulation from the output of [`Simulation::save`], with the content it
-    /// runs on: the save holds the state, never the content.
+    /// Rebuilds a simulation from the output of [`Simulation::save`], with the files of the
+    /// content it runs on: the save holds the state, never the content.
     fn load(content: ContentFiles, bytes: &[u8]) -> Result<Self, LoadError>
     where
         Self: Sized;
 }
 
-/// Bytes that [`Simulation::load`] cannot turn back into a simulation.
+/// Why [`Simulation::load`] cannot rebuild a simulation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoadError {
     /// The bytes do not decode to a saved state.
     Malformed(CodecError),
+    /// The content to run on is invalid.
+    Content(ContentErrors),
 }
 
 impl fmt::Display for LoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Malformed(err) => write!(f, "malformed save: {err}"),
+            Self::Content(err) => err.fmt(f),
         }
     }
 }
@@ -51,6 +55,7 @@ impl std::error::Error for LoadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Malformed(err) => Some(err),
+            Self::Content(err) => Some(err),
         }
     }
 }
@@ -60,9 +65,8 @@ impl std::error::Error for LoadError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Core {
     state: State,
-    /// What the simulation runs on. It belongs to the simulation, never to global state, so
-    /// that a reload can swap it. Carried as is until the content loader reads it.
-    content: ContentFiles,
+    /// What the simulation runs on.
+    content: Content,
 }
 
 /// Everything [`Simulation::save`] writes. The versioned save format (`FCTR` header, migrations)
@@ -79,15 +83,15 @@ struct State {
 
 impl Core {
     /// An empty world at tick 0, running on `content`.
-    pub fn new(content: ContentFiles) -> Self {
+    pub fn new(content: Content) -> Self {
         Self {
             state: State::default(),
             content,
         }
     }
 
-    /// The files this simulation runs on.
-    pub fn content(&self) -> &ContentFiles {
+    /// What this simulation runs on.
+    pub fn content(&self) -> &Content {
         &self.content
     }
 }
@@ -136,6 +140,7 @@ impl Simulation for Core {
     }
 
     fn load(content: ContentFiles, bytes: &[u8]) -> Result<Self, LoadError> {
+        let content = Content::load(&content).map_err(LoadError::Content)?;
         let state = decode(bytes).map_err(LoadError::Malformed)?;
         Ok(Self { state, content })
     }
@@ -148,11 +153,11 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
-    use crate::contract::ContentFile;
+    use crate::content::testing::{shipped, shipped_files, with_overrides};
 
-    /// A simulation on empty content, as every test starts.
+    /// A simulation on the shipped content, as every test starts.
     fn new_core() -> Core {
-        Core::new(ContentFiles::default())
+        Core::new(shipped())
     }
 
     fn pings(nonces: &[u64]) -> Vec<Command> {
@@ -206,7 +211,7 @@ mod tests {
         let mut core = new_core();
         core.step();
         core.submit(&pings(&[9]));
-        let mut loaded = Core::load(ContentFiles::default(), &core.save()).unwrap();
+        let mut loaded = Core::load(shipped_files(), &core.save()).unwrap();
         assert_eq!(loaded, core);
         assert_eq!(loaded.step(), pongs(&[9]));
         assert_eq!(loaded.query(&Query::Tick), QueryResult::Tick(2));
@@ -214,17 +219,12 @@ mod tests {
 
     #[test]
     fn load_runs_on_the_given_content_not_the_saved_one() {
-        let file = |text: &str| ContentFiles {
-            files: vec![ContentFile {
-                path: "config.toml".into(),
-                text: text.into(),
-            }],
-        };
-        let mut core = Core::new(file("old"));
-        assert_eq!(core.content(), &file("old"));
+        let mut core = new_core();
+        assert_eq!(core.content(), &shipped());
         core.step();
-        let loaded = Core::load(file("new"), &core.save()).unwrap();
-        assert_eq!(loaded.content(), &file("new"));
+        let threads = with_overrides(&[("config.toml", "[sim]\nthreads = 3\n")]);
+        let loaded = Core::load(threads, &core.save()).unwrap();
+        assert_eq!(loaded.content().config().sim.threads, 3);
         assert_eq!(loaded.query(&Query::Tick), QueryResult::Tick(1));
     }
 
@@ -236,22 +236,31 @@ mod tests {
             core.submit(&[Command::PanicOnNextStep]),
             [CommandResult::Accepted]
         );
-        let mut loaded = Core::load(ContentFiles::default(), &core.save()).unwrap();
+        let mut loaded = Core::load(shipped_files(), &core.save()).unwrap();
         loaded.step();
     }
 
     #[test]
     fn load_rejects_malformed_bytes() {
         assert!(matches!(
-            Core::load(ContentFiles::default(), &[0xff]),
+            Core::load(shipped_files(), &[0xff]),
             Err(LoadError::Malformed(CodecError::Decode(_)))
         ));
         let mut bytes = new_core().save();
         bytes.push(0);
         assert_eq!(
-            Core::load(ContentFiles::default(), &bytes),
+            Core::load(shipped_files(), &bytes),
             Err(LoadError::Malformed(CodecError::TrailingBytes(1)))
         );
+    }
+
+    #[test]
+    fn load_rejects_invalid_content_before_reading_the_save() {
+        let files = with_overrides(&[("config.toml", "[sim]\nthread = 4\n")]);
+        let Err(LoadError::Content(errors)) = Core::load(files, &[0xff]) else {
+            panic!("a content error");
+        };
+        assert_eq!(errors.errors()[0].path, "config/satiscraft/config.toml");
     }
 
     #[test]
@@ -265,6 +274,15 @@ mod tests {
             err.source().map(ToString::to_string),
             Some(CodecError::TrailingBytes(1).to_string())
         );
+        let files = with_overrides(&[("quests.toml", "")]);
+        let Err(err) = Core::load(files, &[]) else {
+            panic!("a content error");
+        };
+        assert!(
+            err.to_string().starts_with("invalid content (1 error):"),
+            "{err}"
+        );
+        assert_eq!(err.source().map(ToString::to_string), Some(err.to_string()));
     }
 
     /// One platform action, for scenario properties.
@@ -305,7 +323,7 @@ mod tests {
                         prop_assert_eq!(&effects, &reloaded.step());
                         received.extend(effects.into_iter().map(|Effect::Pong { nonce }| nonce));
                     }
-                    Action::SaveAndLoad => reloaded = Core::load(ContentFiles::default(), &reloaded.save()).unwrap(),
+                    Action::SaveAndLoad => reloaded = Core::load(shipped_files(), &reloaded.save()).unwrap(),
                 }
             }
             prop_assert_eq!(&reference, &reloaded);

@@ -8,7 +8,7 @@
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use factory_core::contract::{Command, ContentFiles, Query, decode, encode};
-use factory_core::{Core, Simulation};
+use factory_core::{Content, Core, Simulation};
 
 use crate::error::BridgeError;
 use crate::registry::Registry;
@@ -22,10 +22,10 @@ fn simulations() -> MutexGuard<'static, Registry<Core>> {
     SIMULATIONS.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Creates a simulation running on `content` and returns its id.
+/// Creates a simulation running on `content`, once checked, and returns its id.
 pub(crate) fn init(content: &[u8]) -> Result<i64, BridgeError> {
     let content: ContentFiles = decode(content).map_err(BridgeError::codec("content"))?;
-    let core = Core::new(content);
+    let core = Core::new(Content::load(&content)?);
     Ok(simulations().insert(core))
 }
 
@@ -73,15 +73,38 @@ pub(crate) fn shutdown(id: i64) -> Result<(), BridgeError> {
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
+    use std::fs;
     use std::panic::catch_unwind;
+    use std::path::Path;
 
-    use factory_core::contract::{CommandResult, Effect, QueryResult};
+    use factory_core::contract::{CommandResult, ContentFile, Effect, QueryResult};
 
     use super::*;
     use crate::registry::RegistryError;
 
+    /// The engine's content as the platform passes it: each `.toml` file of
+    /// `crates/factory-core/content/` as `content/<name>`, then `overrides`.
+    fn content_with(overrides: &[ContentFile]) -> Vec<u8> {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../factory-core/content");
+        let mut names: Vec<String> = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|entry| entry.unwrap().file_name().into_string().ok())
+            .filter(|name| name.ends_with(".toml"))
+            .collect();
+        names.sort();
+        let mut files: Vec<ContentFile> = names
+            .into_iter()
+            .map(|name| ContentFile {
+                text: fs::read_to_string(dir.join(&name)).unwrap(),
+                path: format!("content/{name}"),
+            })
+            .collect();
+        files.extend_from_slice(overrides);
+        encode(&ContentFiles { files }).unwrap()
+    }
+
     fn no_content() -> Vec<u8> {
-        encode(&ContentFiles::default()).unwrap()
+        content_with(&[])
     }
 
     fn batch(commands: &[Command]) -> Vec<u8> {
@@ -133,6 +156,22 @@ mod tests {
         );
         shutdown(id).unwrap();
         shutdown(loaded).unwrap();
+    }
+
+    #[test]
+    fn invalid_content_is_refused_with_its_file_and_line() {
+        let typo = ContentFile {
+            path: "config/satiscraft/config.toml".into(),
+            text: "[sim]\nthread = 4\n".into(),
+        };
+        let expected = "invalid content (1 error):\n  config/satiscraft/config.toml:2: unknown \
+                        field `thread`, expected `threads` or `tick_budget_ms`";
+        for result in [
+            init(&content_with(std::slice::from_ref(&typo))),
+            load(&content_with(&[typo]), &[]),
+        ] {
+            assert_eq!(result.unwrap_err().to_string(), expected);
+        }
     }
 
     #[test]

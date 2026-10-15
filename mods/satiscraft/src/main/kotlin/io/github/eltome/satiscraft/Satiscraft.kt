@@ -1,8 +1,7 @@
 package io.github.eltome.satiscraft
 
-import io.github.eltome.satiscraft.core.FactoryCore
+import io.github.eltome.satiscraft.core.CoreStartup
 import io.github.eltome.satiscraft.core.NativeBridge
-import io.github.eltome.satiscraft.core.contract.ContentFiles
 import io.github.eltome.satiscraft.core.driver.CommandQueue
 import io.github.eltome.satiscraft.core.driver.CoreDriver
 import io.github.eltome.satiscraft.core.driver.EffectDispatcher
@@ -39,11 +38,17 @@ object Satiscraft {
         NeoForge.EVENT_BUS.addListener(ServerStoppedEvent::class.java, ::onServerStopped)
     }
 
-    /** Loads factory-core, refuses to start on a contract mismatch, and creates the simulation. */
-    private fun onServerStarting(@Suppress("UNUSED_PARAMETER") event: ServerStartingEvent) {
+    /**
+     * Loads factory-core, refuses to start on a contract mismatch, and creates the simulation on
+     * the engine's content. Invalid content stops the server, with every problem at its `file:line`.
+     */
+    private fun onServerStarting(event: ServerStartingEvent) {
         NativeBridge.ensureCompatible()
-        // The engine's TOML content is not loaded yet: the core runs on no files.
-        val core = FactoryCore.create(ContentFiles())
+        val core = CoreStartup.start(event.server.serverDirectory, LOGGER)
+        if (core == null) {
+            event.server.halt(false)
+            return
+        }
         driver = CoreDriver(core, EffectDispatcher(LOGGER), LOGGER)
         LOGGER.info("factory-core {} loaded (contract v{})", NativeBridge.coreVersion(), NativeBridge.contractVersion())
     }

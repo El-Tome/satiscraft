@@ -1,9 +1,9 @@
 package io.github.eltome.satiscraft.core.driver
 
 import io.github.eltome.satiscraft.core.FactoryCore
+import io.github.eltome.satiscraft.core.shippedContent
 import io.github.eltome.satiscraft.core.contract.Command
 import io.github.eltome.satiscraft.core.contract.CommandResult
-import io.github.eltome.satiscraft.core.contract.ContentFiles
 import io.github.eltome.satiscraft.core.contract.Effect
 import io.github.eltome.satiscraft.core.contract.Rejection
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,7 +23,7 @@ class CoreDriverJniTest {
 
     @Test
     fun `a submitted command produces its effect on the next tick`() {
-        CoreDriver(FactoryCore.create(ContentFiles()), dispatcher, logger).use { driver ->
+        CoreDriver(FactoryCore.create(shippedContent), dispatcher, logger).use { driver ->
             driver.commands.enqueue(Command.Ping(7u)) { results += it }
             driver.tick(1)
             assertEquals(listOf(CommandResult.Accepted), results)
@@ -35,7 +35,7 @@ class CoreDriverJniTest {
 
     @Test
     fun `a panic in the core refuses the tick's commands and halts the driver`() {
-        CoreDriver(FactoryCore.create(ContentFiles()), dispatcher, logger).use { driver ->
+        CoreDriver(FactoryCore.create(shippedContent), dispatcher, logger).use { driver ->
             driver.commands.enqueue(Command.PanicOnNextStep) { results += it }
             driver.commands.enqueue(Command.Ping(7u)) { results += it }
             driver.tick(1)

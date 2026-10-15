@@ -27,6 +27,14 @@ dependencies {
     serverMods("thedarkcolour:kotlinforforge-neoforge:${providers.gradleProperty("kff_version").get()}")
 }
 
+// The modpack's config and content overrides, copied into each dev run before it starts:
+// edit them here, then ./gradlew :modpack:runServer.
+val syncConfig = tasks.register<Sync>("syncConfig") {
+    description = "Copies config/satiscraft/ into the game folder of the dev runs."
+    from(layout.projectDirectory.dir("config/satiscraft"))
+    into(layout.projectDirectory.dir("run/config/satiscraft"))
+}
+
 neoForge {
     version = providers.gradleProperty("neo_version").get()
 
@@ -40,6 +48,7 @@ neoForge {
         }
         configureEach {
             logLevel = org.slf4j.event.Level.INFO
+            taskBefore(syncConfig)
         }
     }
 }
